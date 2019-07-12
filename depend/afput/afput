@@ -1,0 +1,180 @@
+#!/bin/sh
+# -*- tab-width: 4 -*- ;; Emacs
+# vi: set noexpandtab  :: Vi/ViM
+############################################################ IDENT(1)
+#
+# $Title: Script to upload (put) file into artifatory repository $
+# $Copyright: 2019 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/afput/afput 2019-07-12 16:42:10 -0700 freebsdfrau $
+#
+############################################################ CONFIGURATION
+
+#
+# Artifactory settings
+#
+REPO_HOST="artifactory.main.example.net"
+REPO_URL="https://$REPO_HOST/artifactory/"
+REPO_DIRS="
+	# CentOS/RHEL 6.x
+	yum-fraubsd/centos/6/x86_64/x86_64/
+	yum-fraubsd-el6-x86_64/
+
+	# CentOS/RHEL 7.x
+	yum-fraubsd-el7-x86_64/Packages/
+
+	# Virtual CRAN
+	cran-dev/src/contrib/
+" # END-QUOTE
+
+############################################################ GLOBALS
+
+pgm="${0##*/}" # Program basename
+
+#
+# Global exit status
+#
+SUCCESS=0
+FAILURE=1
+
+#
+# Command-line options
+#
+PASS=		# -p pass
+REPO_DIR=	# -r repo_dir
+USER=		# -u user
+
+############################################################ FUNCTIONS
+
+have(){ type "$@" > /dev/null 2>&1; }
+
+warn()
+{
+	local fmt="$1"
+	[ $# -gt 0 ] && shift 1
+	[ "$fmt" ] && printf "%s: $fmt\n" "$pgm" "$@" >&2
+}
+
+die()
+{
+	warn "$@"
+	exit $FAILURE
+}
+
+usage()
+{
+	warn "$@"
+	echo "Usage: $0 [-u user] [-p pass] [-r repo_dir] file ..." >&2
+	exit $FAILURE
+}
+
+############################################################ MAIN
+
+#
+# Process command-line options
+#
+while getopts p:r:u: flag; do
+	case "$flag" in
+	p) PASS="$OPTARG" ;;
+	r) REPO_DIR="$OPTARG" ;;
+	u) USER="$OPTARG" ;;
+	*) usage # NOTREACHED
+	esac
+done
+shift $(( $OPTIND - 1 ))
+
+#
+# Validate command-line arguments
+#
+[ $# -gt 0 ] || usage "file argument required"
+
+#
+# Dependency checks
+#
+have curl || die "curl not installed"
+
+#
+# Validate command-line arguments
+#
+allok=1
+for path in "$@"; do
+	if [ ! -e "$path" ]; then
+		allok=
+		warn "$path: No such file or directory"
+		continue
+	fi
+	if [ -d "$path" ]; then
+		allok=
+		warn "$path: Is a directory"
+		continue
+	fi
+done
+[ "$allok" ] || die
+
+#
+# Generate list of files to upload
+#
+if [ $# -eq 1 ]; then
+	list="$1"
+else
+	oldIFS="$IFS"
+	IFS=,
+	list="{$*}"
+	IFS="$oldIFS"
+fi
+
+#
+# Allow the user to select the destination repository
+#
+if [ ! "$REPO_DIR" ]; then
+	#
+	# Get a list of configured destination repositories
+	#
+	repos=$( echo "$REPO_DIRS" | awk '!/^[[:space:]]*(#|$)/{
+		sub(/^[[:space:]]*/, "")
+		sub(/[[:space:]]*$/, "")
+		print
+	}' )
+	[ "$repos" ] || die "No configured repositories to choose from"
+
+	while :; do
+		echo "Select repository:"
+		echo "$repos" | awk '$0=sprintf(" %5u  %s",NR,$0)'
+		printf "Choice: "
+		read CHOICE
+		case "$CHOICE" in
+		""|*[^0-9]*)
+			warn "Invalid choice \`%s'" "$CHOICE"
+			continue ;;
+		esac
+		REPO_DIR=$( echo "$repos" | awk "NR==$CHOICE" )
+		if [ ! "$REPO_DIR" ]; then
+			warn "Invalid choice \`%s'" "$CHOICE"
+			continue
+		fi
+		break # all good
+	done
+fi
+
+#
+# Upload
+#
+case "$REPO_DIR" in
+*/) : good ;;
+*) REPO_DIR="$REPO_DIR/"
+esac
+if [ -e "$HOME/.netrc" -a ! "$USER$PASS" ]; then
+	curl --netrc \
+		-X PUT "$REPO_URL$REPO_DIR" \
+		-T "$list" || die
+else
+	curl -u "${USER:-$( id -nu )}${PASS:+:$PASS}" \
+		-X PUT "$REPO_URL$REPO_DIR" \
+		-T "$list" || die
+fi
+echo
+
+exit $SUCCESS
+
+################################################################################
+# END
+################################################################################
