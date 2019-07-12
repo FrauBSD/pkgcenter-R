@@ -1,0 +1,257 @@
+#!/bin/sh
+############################################################ IDENT(1)
+#
+# $Title: Script to install R libraries from list file $
+# $Copyright: 2019 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/vcr/libexec/play 2019-07-12 14:05:39 -0700 freebsdfrau $
+#
+############################################################ CONFIGURATION
+
+#
+# Where to install packages
+#
+VCR_DESTDIR=library
+
+############################################################ ENVIRONMENT
+
+#
+# Inherited from vcr
+#
+: ${VCR_PROGRAM:=vcr}
+
+############################################################ GLOBALS
+
+#
+# Program basename
+#
+case "$( uname -s )" in
+Linux)
+	pgm=$( readlink -f "$0" )
+	pgm="${pgm##*/}"
+	;;
+*)
+	pgm="${0##*/}"
+esac
+
+#
+# Global exit status
+#
+SUCCESS=0
+FAILURE=1
+
+#
+# Command-line options
+#
+DESTDIR=	# -d dir
+DRYRUN=		# -n
+FORCE=		# -f
+
+############################################################ I18N
+
+case "${LANG:-$LC_ALL}" in
+de|de_DE|de_DE.*) # German
+fmt_no_such_r_interpreter="%s: Kein solcher R interpreter"
+msg_default="Standard"
+msg_destination_directory="Zielverzeichnis."
+msg_dry_run_dont_actually_install_anything="Probelauf. Installieren sie eigentlich nichts."
+msg_fatal="TÖDLICH"
+msg_force_install_even_if_already_installed="Macht. Installieren Sie, auch wenn bereits installiert."
+msg_missing_file_argument="Fehlendes dateiargument"
+msg_options="Optionen"
+msg_print_help_message="Hilfemeldung an stderr ausgeben und beenden."
+msg_usage="Verwendungszweck"
+msg_warning="ACHTUNG"
+;;
+he|he_IL|he_IL.*) # Hebrew
+fmt_no_such_r_interpreter="%s: אין מתורגמן מסוג R כזה"
+msg_default="ברירת מחדל"
+msg_destination_directory="ספריית יעד."
+msg_dry_run_dont_actually_install_anything="ריצה יבשה. לא ממש להתקין שום דבר."
+msg_fatal="קטלני"
+msg_force_install_even_if_already_installed="כוח. התקן גם אם מותקן כבר."
+msg_missing_file_argument="ארגומנט קובץ חסר"
+msg_options="אפשרויות"
+msg_print_help_message="הדפס את הודעת העזרה ל stdr ולצאת."
+msg_usage="שימוש"
+msg_warning="אזהרה"
+;;
+pl|pl_PL|pl_PL.*) # Polish
+fmt_no_such_r_interpreter="%s: Nie ma takiego tłumacza R"
+msg_default="Domyślna"
+msg_destination_directory="Katalog docelowy."
+msg_dry_run_dont_actually_install_anything="Próba. Nie instaluj niczego."
+msg_fatal="FATALNY"
+msg_force_install_even_if_already_installed="Siła. Zainstaluj, nawet jeśli jest już zainstalowany."
+msg_missing_file_argument="Brakujący argument pliku"
+msg_options="Opcje"
+msg_print_help_message="Wydrukuj komunikat pomocy na stderr i wyjdź."
+msg_usage="Stosowanie"
+msg_warning="OSTRZEŻENIE"
+;;
+ru_RU.UTF8) # Russian (Cyrillic)
+fmt_no_such_r_interpreter="%s: Нет такого R переводчика"
+msg_default="По умолчанию"
+msg_destination_directory="Целевой каталог."
+msg_dry_run_dont_actually_install_anything="Пробный прогон. На самом деле ничего не устанавливайте."
+msg_fatal="ФАТАЛЬНЫЙ"
+msg_force_install_even_if_already_installed="Силы. Установите, даже если он уже установлен."
+msg_missing_file_argument="Отсутствует аргумент файла"
+msg_options="Опции"
+msg_print_help_message="Распечатать справочное сообщение в stderr и выйти."
+msg_usage="Использование"
+msg_warning="ПРЕДУПРЕЖДЕНИЕ"
+;;
+ru|ru_RU|ru_RU.*) # Russian (Latin)
+fmt_no_such_r_interpreter="%s: Net takogo R perevodchika"
+msg_default="Po umolchaniyu"
+msg_destination_directory="Tselevoy katalog."
+msg_dry_run_dont_actually_install_anything="Probnyy progon. Na samom dele nichego ne ustanavlivayte."
+msg_fatal="FATAL'NYY"
+msg_force_install_even_if_already_installed="Sily. Ustanovite, dazhe yesli on uzhe ustanovlen."
+msg_missing_file_argument="Otsutstvuyet argument fayla"
+msg_options="Optsii"
+msg_print_help_message="Raspechatat' spravochnoye soobshcheniye v stderr i vyyti."
+msg_usage="Ispol'zovaniye"
+msg_warning="PREDUPREZHDENIYe"
+;;
+zh_CN.UTF8) # Chinese (Simplified)
+fmt_no_such_r_interpreter="%s: 没有这样的R翻译"
+msg_default="默认"
+msg_destination_directory="目标目录。"
+msg_dry_run_dont_actually_install_anything="干运行。 实际上不要安装任何东西。"
+msg_fatal="致命"
+msg_force_install_even_if_already_installed="力。 即使已经安装也要安装。"
+msg_missing_file_argument="缺少文件参数"
+msg_options="选项"
+msg_print_help_message="将帮助消息打印到stderr并退出。"
+msg_usage="用法"
+msg_warning="警告"
+;;
+zh|zh_CN|zh_CN.*) # Chinese (Latin)
+fmt_no_such_r_interpreter="%s: Méiyǒu zhèyàng de R fānyì"
+msg_default="Mòrèn"
+msg_destination_directory="Mùbiāo mùlù."
+msg_dry_run_dont_actually_install_anything="Gàn yùnxíng. Shíjì shang bùyào ānzhuāng rènhé dōngxī."
+msg_fatal="ZHÌMÌNG"
+msg_force_install_even_if_already_installed="Lì. Jíshǐ yǐjīng ānzhuāng yě yào ānzhuāng."
+msg_missing_file_argument="Quēshǎo wénjiàn cānshù"
+msg_options="Xuǎnxiàng"
+msg_print_help_message="Jiāng bāngzhù xiāoxī dǎyìn dào stderr bìng tuìchū."
+msg_usage="Yòngfǎ"
+msg_warning="JǏNGGÀO"
+;;
+*) # English
+fmt_no_such_r_interpreter="%s: No such R interpreter"
+msg_default="Default"
+msg_destination_directory="Destination directory."
+msg_dry_run_dont_actually_install_anything="Dry run. Don't actually install anything."
+msg_fatal="FATAL"
+msg_force_install_even_if_already_installed="Force. Install even if already installed."
+msg_missing_file_argument="Missing file argument"
+msg_options="Options"
+msg_print_help_message="Print help message to stderr and exit."
+msg_usage="Usage"
+msg_warning="WARNING"
+esac
+
+############################################################ FUNCTIONS
+
+have(){ type "$@" > /dev/null 2>&1; }
+
+usage()
+{
+	local optfmt="\t%-9s %s\n"
+	exec >&2
+	printf "$msg_usage: %s %s [-fhn] [-d dir] [--] " "$VCR_PROGRAM" "$pgm"
+	if [ "$R_INHERITED" ]; then
+		printf "file ...\n"
+	else
+		printf "R file ...\n"
+	fi
+	printf "$msg_options:\n"
+	printf "$optfmt" "-h" "$msg_print_help_message"
+	printf "$optfmt" "-d dir" \
+		"$msg_destination_directory $msg_default \`$VCR_DESTDIR'."
+	printf "$optfmt" "-f" "$msg_force_install_even_if_already_installed"
+	printf "$optfmt" "-n" "$msg_dry_run_dont_actually_install_anything"
+	exit $FAILURE
+}
+
+if [ -t 1 ]; then # stdout is a tty
+	warn(){ printf "\e[33;1m$msg_warning!\e[m %s\n" "$*" >&2; }
+
+	die()
+	{
+		local fmt="$1"
+		if [ "$fmt" ]; then
+			shift 1 # fmt
+			printf "\e[1;31m$msg_fatal!\e[m $fmt\n" "$@" >&2
+		fi
+		exit $FAILURE
+	}
+
+else # stdout is not a tty
+	warn(){ printf "$msg_warning! %s\n" "$*" >&2; }
+
+	die()
+	{
+		local fmt="$1"
+		if [ "$fmt" ]; then
+			shift 1 # fmt
+			printf "$msg_fatal! $fmt\n" "$@" >&2
+		fi
+		exit $FAILURE
+	}
+fi
+
+############################################################ MAIN
+
+set -e # errexit
+
+#
+# Process command-line options
+#
+while getopts d:fhn flag; do
+	case "$flag" in
+	f) FORCE=1 ;;
+	d) DESTDIR="$OPTARG" ;;
+	n) DRYRUN=1 ;;
+	*) usage # NOTREACHED
+	esac
+done
+shift $(( $OPTIND - 1 ))
+
+#
+# Validate command-line arguments
+#
+[ $# -gt 0 ] || usage # NOTREACHED
+
+#
+# Chain-load to `add' module
+#
+if [ "$R_INHERITED" ]; then
+	have "$R" || die "$fmt_no_such_r_interpreter" "$R"
+	for file in "$@"; do
+		$VCR_PROGRAM add ${DRYRUN:+-n} ${FORCE:+-f} \
+			${DESTDIR:+-d "$DESTDIR"} -r "$file"
+	done
+else
+	R="$1"
+	have "$R" || die "$fmt_no_such_r_interpreter" "$R"
+	shift 1 # R
+	if [ $# -lt 1 ]; then
+		warn "$msg_missing_file_argument"
+		usage
+		# NOTREACHED
+	fi
+	for file in "$@"; do
+		$VCR_PROGRAM add ${DRYRUN:+-n} ${FORCE:+-f} \
+			${DESTDIR:+-d "$DESTDIR"} -r "$file" -- "$R"
+	done
+fi
+
+exit $SUCCESS
+
+################################################################################
+# END
+################################################################################

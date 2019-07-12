@@ -1,0 +1,594 @@
+#!/bin/sh
+############################################################ IDENT(1)
+#
+# $Title: Script to uninstall R libraries $
+# $Copyright: 2019 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/vcr/libexec/rm 2019-07-12 14:05:39 -0700 freebsdfrau $
+#
+############################################################ CONFIGURATION
+
+#
+# Where to install packages
+#
+VCR_DESTDIR=library
+
+############################################################ ENVIRONMENT
+
+#
+# Debugging
+#
+: ${VCR_DEBUG:=}
+
+#
+# Inherited from vcr
+#
+: ${VCR_PROGRAM:=vcr}
+
+############################################################ GLOBALS
+
+#
+# Program basename
+#
+case "${UNAME_s:=$( uname -s )}" in
+Linux)
+	pgm=$( readlink -f "$0" )
+	pgm="${pgm##*/}"
+	;;
+*)
+	pgm="${0##*/}"
+esac
+
+#
+# Global exit status
+#
+SUCCESS=0
+FAILURE=1
+
+#
+# Command-line options
+#
+R=		# -B R
+DESTDIR=	# -d dir
+DRYRUN=		# -n
+FORCE=		# -f
+
+#
+# Literals
+#
+NL="
+" # END-QUOTE
+
+#
+# Miscellaneous
+#
+INSTALLED=
+REMOVE=
+REQUIREDBY=
+
+############################################################ I18N
+
+case "${LANG:-$LC_ALL}" in
+de|de_DE|de_DE.*) # German
+fmt_base_library="Basisbibliothek (-B %s)"
+fmt_invalid_package_name="%s: Ungültiger paketname"
+fmt_no_such_file_or_directory="%s: Keine solche datei oder ordner"
+fmt_no_such_r_interpreter="%s: Kein solcher R interpreter"
+fmt_option_cannot_be_combined_with="%s: option kann nicht kombiniert werden mit \`%s'"
+fmt_something_went_wrong_in="Etwas ist schief gelaufen in %s"
+fmt_unable_to_remove="Entfernen nicht möglich %s"
+msg_all_good="Alles gut"
+msg_check_for_removal_dependencies="Überprüfen sie ob entfernungsabhängigkeiten vorliegen"
+msg_debug="Debuggen"
+msg_default="Standard"
+msg_destination="Ziel"
+msg_destination_directory="Zielverzeichnis."
+msg_dry_run_dont_actually_remove_anything="Probelauf. Entferne eigentlich nichts."
+msg_dry_run_enabled="Probelauf aktiviert (-n). Die endgültige deinstallation wird nicht durchgeführt."
+msg_enable_additional_debugging_statements="Aktivieren sie zusätzliche debuggen-Anweisungen."
+msg_exiting="Verlassen."
+msg_fatal="TÖDLICH"
+msg_force_remove_even_if_required="Macht. Entfernen selbst wenn von einer paket benötigt."
+msg_library="bibliothek"
+msg_load_dependencies="Abhängigkeiten laden"
+msg_missing_package_argument="Fehlendes paketargument"
+msg_options="Optionen"
+msg_print_help_message="Hilfemeldung an stderr ausgeben und beenden."
+msg_proceeding_anyway="Trotzdem weitermachen (-f gegeben)"
+msg_removal_prevented_by="Entfernung verhindert durch"
+msg_remove_packages="Pakete entfernen"
+msg_success="ERFOLG"
+msg_unable_to_extract_description_file="DESCRIPTION-datei kann nicht extrahiert werden"
+msg_usage="Verwendungszweck"
+msg_use_r_base_library_as_destination="Verwenden sie die R base bibliothek als ziel."
+msg_warning="ACHTUNG"
+;;
+he|he_IL|he_IL.*) # Hebrew
+fmt_base_library="(-B %s) ספריית בסיס"
+fmt_invalid_package_name="%s: שם חבילה לא חוקי"
+fmt_no_such_file_or_directory="%s: אין כזה קובץ או תקייה"
+fmt_no_such_r_interpreter="%s: אין מתורגמן מסוג R כזה"
+fmt_option_cannot_be_combined_with="%s: \`%s' לא ניתן לשלב את האפשרות עם"
+fmt_something_went_wrong_in="%s משהו השתבש ב"
+fmt_unable_to_remove="%s לא ניתן להסיר"
+msg_all_good="הכל טוב"
+msg_check_for_removal_dependencies="בדוק אם יש תלות בהסרה"
+msg_debug="אשפוז"
+msg_default="ברירת מחדל"
+msg_destination="יעד"
+msg_destination_directory="ספריית יעד."
+msg_dry_run_dont_actually_remove_anything="ריצה יבשה. אל תסיר שום דבר."
+msg_dry_run_enabled="הפעלה יבשה מופעלת (-n). הסרת ההתקנה הסופית לא תתבצע."
+msg_enable_additional_debugging_statements="הפעל הצהרות באגים נוספות."
+msg_exiting="יציאה."
+msg_fatal="פאטאל"
+msg_force_remove_even_if_required="כוח. הסר גם אם נדרש על ידי חבילה כלשהי."
+msg_library="ספריה"
+msg_load_dependencies="טען תלות"
+msg_missing_package_argument="ארגומנט חבילה חסר"
+msg_options="אפשרויות"
+msg_print_help_message="הדפס את הודעת העזרה ל stdr ולצאת."
+msg_proceeding_anyway="ההליך בכל מקרה (-f נתון)"
+msg_removal_prevented_by="הסרה מנעה"
+msg_remove_packages="הסר חבילות"
+msg_success="הצלחה"
+msg_unable_to_extract_description_file="אין אפשרות לחלץ קובץ DESCRIPTION"
+msg_usage="שימוש"
+msg_use_r_base_library_as_destination="השתמש בספריית הבסיס R כיעד."
+msg_warning="אזהרה"
+;;
+pl|pl_PL|pl_PL.*) # Polish
+fmt_base_library="Biblioteka bazowa (-B %s)"
+fmt_invalid_package_name="%s: Nieprawidłowa nazwa pakietu"
+fmt_no_such_file_or_directory="%s: Brak takiego pliku lub katalogu"
+fmt_no_such_r_interpreter="%s: Nie ma takiego tłumacza R"
+fmt_option_cannot_be_combined_with="%s: opcja nie może być łączona z \`%s'"
+fmt_something_went_wrong_in="Coś poszło nie tak %s"
+fmt_unable_to_remove="Nie można usunąć %s"
+msg_all_good="Wszystko dobrze"
+msg_check_for_removal_dependencies="Sprawdź zależności od usuwania"
+msg_debug="ODPLUSKWIĆ"
+msg_default="Domyślna"
+msg_destination="Przeznaczenie"
+msg_destination_directory="Katalog docelowy."
+msg_dry_run_dont_actually_remove_anything="Próba. Nie usuwaj niczego."
+msg_dry_run_enabled="Próba włączony (-n). Ostateczne odinstalowanie nie zostanie wykonane."
+msg_enable_additional_debugging_statements="Włącz dodatkowe instrukcje debugowania."
+msg_exiting="Wyjście."
+msg_fatal="FATALNY"
+msg_force_remove_even_if_required="Siła. Usuń, nawet jeśli wymaga tego jakiś pakiet."
+msg_library="Biblioteka"
+msg_load_dependencies="Załaduj zależności"
+msg_missing_package_argument="Brakujący argument pakietu"
+msg_options="Opcje"
+msg_print_help_message="Wydrukuj komunikat pomocy na stderr i wyjdź."
+msg_proceeding_anyway="Postępowanie mimo to (-f podane)"
+msg_removal_prevented_by="Usunięcie uniemożliwiono"
+msg_remove_packages="Usuń pakiety"
+msg_success="POWODZENIE"
+msg_unable_to_extract_description_file="Nie można wyodrębnić pliku DESCRIPTION"
+msg_usage="Stosowanie"
+msg_use_r_base_library_as_destination="Użyj biblioteki podstawowej R jako miejsca docelowego."
+msg_warning="OSTRZEŻENIE"
+;;
+ru_RU.UTF8) # Russian (Cyrillic)
+fmt_base_library="базовая библиотека (-B %s)"
+fmt_invalid_package_name="%s: Неверное пакета имя"
+fmt_no_such_file_or_directory="%s: Данный файл или каталог отсутствует"
+fmt_no_such_r_interpreter="%s: Нет такого R переводчика"
+fmt_option_cannot_be_combined_with="%s: опция не может быть объединена с \`%s'"
+fmt_something_went_wrong_in="Что-то пошло не так в %s"
+fmt_unable_to_remove="Невозможно удалить %s"
+msg_all_good="Все хорошо"
+msg_check_for_removal_dependencies="Проверьте для удаления зависимости"
+msg_debug="ОТЛАЖИВАТЬ"
+msg_default="По умолчанию"
+msg_destination="Место назначения"
+msg_destination_directory="Целевой каталог."
+msg_dry_run_dont_actually_remove_anything="Пробный прогон. На самом деле ничего не удаляйте."
+msg_dry_run_enabled="Пробный запуск включен (-n). Окончательное удаление не будет выполнено."
+msg_enable_additional_debugging_statements="Включить дополнительные операторы отладки."
+msg_exiting="Выход."
+msg_fatal="ФАТАЛЬНЫЙ"
+msg_force_remove_even_if_required="Силы. Удалите, даже если требуется какой-то пакет."
+msg_library="библиотека"
+msg_load_dependencies="Загрузить зависимости"
+msg_missing_package_argument="Отсутствует аргумент пакета"
+msg_options="Опции"
+msg_print_help_message="Распечатать справочное сообщение в stderr и выйти."
+msg_proceeding_anyway="Продолжая в любом случае (-f дано)"
+msg_removal_prevented_by="Удаление предотвращено"
+msg_remove_packages="Удалить пакеты"
+msg_success="УСПЕХ"
+msg_unable_to_extract_description_file="Невозможно извлечь DESCRIPTION файл"
+msg_usage="Использование"
+msg_use_r_base_library_as_destination="Используйте базовую библиотеку R в качестве места назначения."
+msg_warning="ПРЕДУПРЕЖДЕНИЕ"
+;;
+ru|ru_RU|ru_RU.*) # Russian (Latin)
+fmt_base_library="Bazovaya biblioteka (-B %s)"
+fmt_invalid_package_name="%s: Nevernoye paketa imya"
+fmt_no_such_file_or_directory="%s: Dannyy fayl ili katalog otsutstvuyet"
+fmt_no_such_r_interpreter="%s: Net takogo R perevodchika"
+fmt_option_cannot_be_combined_with="%s: optsiya ne mozhet byt' ob\"yedinena s \`%s'"
+fmt_something_went_wrong_in="Chto-to poshlo ne tak v %s"
+fmt_unable_to_remove="Nevozmozhno udalit' %s"
+msg_all_good="Vse khorosho"
+msg_check_for_removal_dependencies="Prover'te dlya udaleniya zavisimosti"
+msg_debug="OTLAZHIVAT'"
+msg_default="Po umolchaniyu"
+msg_destination="Mesto naznacheniya"
+msg_destination_directory="Tselevoy katalog."
+msg_dry_run_dont_actually_remove_anything="Probnyy progon. Na samom dele nichego ne udalyayte."
+msg_dry_run_enabled="Probnyy zapusk vklyuchen (-n). Okonchatel'noye udaleniye ne budet vypolneno."
+msg_enable_additional_debugging_statements="Vklyuchit' dopolnitel'nyye operatory otladki."
+msg_exiting="Vykhod."
+msg_fatal="FATAL'NYY"
+msg_force_remove_even_if_required="Sily. Udalite, dazhe yesli trebuyetsya kakoy-to paket."
+msg_library="Biblioteka"
+msg_load_dependencies="Zagruzit' zavisimosti"
+msg_missing_package_argument="Otsutstvuyet argument paketa"
+msg_options="Optsii"
+msg_print_help_message="Raspechatat' spravochnoye soobshcheniye v stderr i vyyti."
+msg_proceeding_anyway="Prodolzhaya v lyubom sluchaye (-f dano)"
+msg_removal_prevented_by="Udaleniye predotvrashcheno"
+msg_remove_packages="Udalit' pakety"
+msg_success="USPEKH"
+msg_unable_to_extract_description_file="Nevozmozhno izvlech' DESCRIPTION fayl"
+msg_usage="Ispol'zovaniye"
+msg_use_r_base_library_as_destination="Ispol'zuyte bazovuyu biblioteku R v kachestve mesta naznacheniya."
+msg_warning="PREDUPREZHDENIYe"
+;;
+zh_CN.UTF8) # Chinese (Simplified)
+fmt_base_library="基础库 (-B %s)"
+fmt_invalid_package_name="%s: 包名称无效"
+fmt_no_such_file_or_directory="%s: 没有相应的文件和目录"
+fmt_no_such_r_interpreter="%s: 没有这样的R翻译"
+fmt_option_cannot_be_combined_with="%s: 选项不能与 \`%s'"
+fmt_something_went_wrong_in="出了点问题 %s"
+fmt_unable_to_remove="无法删除 %s"
+msg_all_good="都好"
+msg_check_for_removal_dependencies="检查删除依赖项"
+msg_debug="调试"
+msg_default="默认"
+msg_destination="目的地"
+msg_destination_directory="目标目录。"
+msg_dry_run_dont_actually_remove_anything="干运行。 实际上不要删除任何东西。"
+msg_dry_run_enabled="启用空运行（-n）。 最终卸载将不会执行。"
+msg_enable_additional_debugging_statements="启用其他调试语句。"
+msg_exiting="退出。"
+msg_fatal="致命"
+msg_force_remove_even_if_required="力。 即使某些包裹需要，也要删除。"
+msg_library="图书馆"
+msg_load_dependencies="加载依赖项"
+msg_missing_package_argument="缺少包参数"
+msg_options="选项"
+msg_print_help_message="将帮助消息打印到stderr并退出。"
+msg_proceeding_anyway="无论如何都要进行（-f给出）"
+msg_removal_prevented_by="去除阻止"
+msg_remove_packages="删除包"
+msg_success="成功"
+msg_unable_to_extract_description_file="无法提取DESCRIPTION文件"
+msg_usage="用法"
+msg_use_r_base_library_as_destination="使用R库作为目标。"
+msg_warning="警告"
+;;
+zh|zh_CN|zh_CN.*) # Chinese (Latin)
+fmt_base_library="Jīchǔ kù (-B %s)"
+fmt_invalid_package_name="%s: Bāo míngchēng wúxiào"
+fmt_no_such_file_or_directory="%s: Méiyǒu xiāngyìng de wénjiàn hé mùlù"
+fmt_no_such_r_interpreter="%s: Méiyǒu zhèyàng de R fānyì"
+fmt_option_cannot_be_combined_with="%s: Xuǎnxiàng bùnéng yǔ \`%s'"
+fmt_something_went_wrong_in="Chūle diǎn wèntí %s"
+fmt_unable_to_remove="Wúfǎ shānchú %s"
+msg_all_good="Dōu hǎo"
+msg_check_for_removal_dependencies="Jiǎnchá shānchú yīlài xiàng"
+msg_debug="TIÁOSHÌ"
+msg_default="Mòrèn"
+msg_destination="Mùdì de"
+msg_destination_directory="Mùbiāo mùlù."
+msg_dry_run_dont_actually_remove_anything="Gàn yùnxíng. Shíjì shang bùyào shānchú rènhé dōngxī."
+msg_dry_run_enabled="Qǐyòng kōng yùnxíng (-n). Zuìzhōng xièzài jiāng bù huì zhíxíng."
+msg_enable_additional_debugging_statements="Qǐyòng qítā tiáoshì yǔjù."
+msg_exiting="Tuìchū."
+msg_fatal="ZHÌMÌNG"
+msg_force_remove_even_if_required="Lì. Jíshǐ mǒu xiē bāoguǒ xūyào, yě yào shānchú."
+msg_library="Túshū guǎn"
+msg_load_dependencies="Jiāzài yīlài xiàng"
+msg_missing_package_argument="Quēshǎo bāo cānshù"
+msg_options="Xuǎnxiàng"
+msg_print_help_message="Jiāng bāngzhù xiāoxī dǎyìn dào stderr bìng tuìchū."
+msg_proceeding_anyway="Wúlùn rúhé dōu yào jìnxíng (-f gěi chū)"
+msg_removal_prevented_by="Qùchú zǔzhǐ"
+msg_remove_packages="Shānchú bāo"
+msg_success="CHÉNGGŌNG"
+msg_unable_to_extract_description_file="Wúfǎ tíqǔ DESCRIPTION wénjiàn"
+msg_usage="Yòngfǎ"
+msg_use_r_base_library_as_destination="Shǐyòng R kù zuòwéi mùbiāo."
+msg_warning="JǏNGGÀO"
+;;
+*) # English
+fmt_base_library="Base library (-B %s)"
+fmt_invalid_package_name="%s: Invalid package name"
+fmt_no_such_file_or_directory="%s: No such file or directory"
+fmt_no_such_r_interpreter="%s: No such R interpreter"
+fmt_option_cannot_be_combined_with="%s: option cannot be combined with \`%s'"
+fmt_something_went_wrong_in="Something went wrong in %s"
+fmt_unable_to_remove="Unable to remove %s"
+msg_all_good="All good"
+msg_check_for_removal_dependencies="Check for removal dependencies"
+msg_debug="DEBUG"
+msg_default="Default"
+msg_destination="Destination"
+msg_destination_directory="Destination directory."
+msg_dry_run_dont_actually_remove_anything="Dry run. Don't actually remove anything."
+msg_dry_run_enabled="Dry run enabled (-n). Final uninstall will not be performed."
+msg_enable_additional_debugging_statements="Enable additional debugging statements."
+msg_exiting="Exiting."
+msg_fatal="FATAL"
+msg_force_remove_even_if_required="Force. Remove even if required by some package."
+msg_library="Library"
+msg_load_dependencies="Load dependencies"
+msg_missing_package_argument="Missing package argument"
+msg_options="Options"
+msg_print_help_message="Print help message to stderr and exit."
+msg_proceeding_anyway="Proceeding anyway (-f given)"
+msg_removal_prevented_by="Removal prevented by"
+msg_remove_packages="Remove packages"
+msg_success="SUCCESS"
+msg_unable_to_extract_description_file="Unable to extract DESCRIPTION file"
+msg_usage="Usage"
+msg_use_r_base_library_as_destination="Use R base library as destination."
+msg_warning="WARNING"
+esac
+
+############################################################ FUNCTIONS
+
+have(){ type "$@" > /dev/null 2>&1; }
+matches(){ awk -v line="$1" '$0==line{exit ++found}END{exit !found}'; }
+
+usage()
+{
+	local optfmt="\t%-9s %s\n"
+	exec >&2
+	printf "$msg_usage: %s %s [-Dfhn] [-B R | -d dir] [--] pkg ...\n" \
+		"$VCR_PROGRAM" "$pgm"
+	printf "$msg_options:\n"
+	printf "$optfmt" "-B R" "$msg_use_r_base_library_as_destination"
+	printf "$optfmt" "-D" "$msg_enable_additional_debugging_statements"
+	printf "$optfmt" "-d dir" \
+		"$msg_destination_directory $msg_default \`$VCR_DESTDIR'."
+	printf "$optfmt" "-f" "$msg_force_remove_even_if_required"
+	printf "$optfmt" "-h" "$msg_print_help_message"
+	printf "$optfmt" "-n" "$msg_dry_run_dont_actually_remove_anything"
+	if [ "$R" ]; then
+		printf "$fmt_base_library:\n" "$R"
+		printf "\t%s\n" \
+			"$( R -e "'cat(.libPaths(.Library))'" 3> /dev/null )"
+	fi
+	exit $FAILURE
+}
+
+exec 3<&1
+if [ -t 1 ]; then # stdout is a tty
+	eval2(){ printf "\e[2m%s\e[m\n" "$*" >&3; eval "$@"; }
+	step(){ printf "\e[32;1m==>\e[39m %s\e[m\n" "$*"; }
+	step2(){ [ ! "$VCR_DEBUG" ] ||
+		printf "\e[32;1m->\e[39m %s\e[m\n" "$*"; }
+	warn(){ printf "\e[33;1m$msg_warning!\e[m %s\n" "$*" >&2; }
+
+	die()
+	{
+		local fmt="$1"
+		if [ "$fmt" ]; then
+			shift 1 # fmt
+			printf "\e[1;31m$msg_fatal!\e[m $fmt\n" "$@" >&2
+		fi
+		exit $FAILURE
+	}
+
+	debug()
+	{
+		[ ! "$VCR_DEBUG" ] && return
+		local fmt="$1"
+		shift 1 # fmt
+		printf "\e[35m$msg_debug\e[m $fmt\n" "$@" >&2
+	}
+
+else # stdout is not a tty
+	eval2(){ printf "%s\n" "$*" >&3; eval "$@"; }
+	step(){ printf "==> %s\n" "$*"; }
+	step2(){ [ ! "$VCR_DEBUG" ] || printf "-> %s\n" "$*"; }
+	warn(){ printf "$msg_warning! %s\n" "$*" >&2; }
+
+	die()
+	{
+		local fmt="$1"
+		if [ "$fmt" ]; then
+			shift 1 # fmt
+			printf "$msg_fatal! $fmt\n" "$@" >&2
+		fi
+		exit $FAILURE
+	}
+
+	debug()
+	{
+		[ ! "$VCR_DEBUG" ] && return
+		local fmt="$1"
+		shift 1 # fmt
+		printf "$msg_debug $fmt\n" "$@" >&2
+	}
+fi
+
+R()
+{
+	eval2 command $R --slave --no-restore "$@"
+}
+
+############################################################ MAIN
+
+set -e # errexit
+
+#
+# Process command-line options
+#
+while getopts B:Dd:fhn flag; do
+	case "$flag" in
+	B) if [ "$DESTDIR" ]; then
+		die "$fmt_option_cannot_be_combined_with" "-B" "-d dir"
+	   else
+		R="$OPTARG"
+	   fi ;;
+	D) VCR_DEBUG=$(( ${VCR_DEBUG:-0} + 1 )) ;;
+	d) if [ "$R" ]; then
+		die "$fmt_option_cannot_be_combined_with" "-d" "-B R"
+	   else
+		DESTDIR="$OPTARG"
+	   fi ;;
+	f) FORCE=1 ;;
+	n) DRYRUN=1
+	   warn "$msg_dry_run_enabled" ;;
+	*) usage # NOTREACHED
+	esac
+done
+shift $(( $OPTIND - 1 ))
+
+#
+# Check command-line arguments
+#
+[ $# -ge 1 ] || die "$msg_missing_package_argument"
+: ${DESTDIR:=$VCR_DESTDIR}
+if [ "$R" ]; then
+	have "$R" || die "$fmt_no_such_r_interpreter" "$R"
+	DESTDIR=$( R -e "'cat(.libPaths(.Library))'" 3> /dev/null ) || die
+fi
+[ -e "$DESTDIR" ] || die "$fmt_no_such_file_or_directory" "$DESTDIR"
+[ -d "$DESTDIR" ] || die "$fmt_not_a_directory" "$DESTDIR"
+
+#
+# Process command-line arguments
+#
+while [ $# -gt 0 ]; do
+	case "$1" in
+	*"'"*|*[$IFS]*|*==*|*://*)
+		die "$fmt_invalid_package_name" "$1"
+		# NOTREACHED
+		;;
+	esac
+	package="$DESTDIR/$1"
+	[ -e "$package" ] || die "$fmt_no_such_file_or_directory" "$package"
+	[ -d "$package" ] || die "$fmt_not_a_directory" "$package"
+	REMOVE="$REMOVE$NL$1"
+	shift 1
+done
+REMOVE="${REMOVE#$NL}"
+
+##
+## Check package dependencies
+##
+step "$msg_load_dependencies"
+
+#
+# Get a list of libraries installed in the destination directory
+#
+step2 "$msg_destination $msg_library"
+debug "DESTDIR=[$DESTDIR]"
+[ ! -d "$DESTDIR" ] || INSTALLED=$(
+	for dir in "$DESTDIR"/*; do
+		n=0
+		name="${dir##*/}"
+		echo "$REMOVE" | matches "$name" && continue
+		[ -e "$dir/DESCRIPTION" ] || continue
+		printf "%s\n" "$name"
+	done
+) || die "$fmt_something_went_wrong_in" "$DESTDIR"
+debug "INSTALLED=[$( echo $INSTALLED )]"
+
+#
+# Verify no installed packages require pending removals
+#
+n=0
+set -- $INSTALLED
+for name in "$@"; do
+	n=$(( $n + 1 ))
+	step2 "$name [$n/$#]"
+	package="$DESTDIR/$name"
+	descr=$( eval2 cat "$package/DESCRIPTION" ) ||
+		die "$msg_unable_to_extract_description_file"
+	depinfo=$(
+		[ "$VCR_DEBUG" ] || exec 2> /dev/null
+		echo "$descr" | awk '
+			BEGIN { catch = "^(Depends|Imports):" }
+			$0 ~ catch && ++start, $0 ~ /^[^[:space:]]/ &&
+				$1 !~ catch && stop = 1 { }
+			!start { next }
+			!stop { print; next }
+			{ start = stop = 0 }
+		' | tee /dev/stderr
+	)
+	deps=$( echo "$depinfo" | awk '
+		{
+			sub(/^[^[:space:]]+:/, "")
+			buf = buf " " $0
+		}
+		END {
+			gsub(/\([^)]+\)/, "", buf)
+			gsub(/,/, " ", buf)
+			sub(/^[[:space:]]*/, "", buf)
+			sub(/[[:space:]]*$/, "", buf)
+			ndeps = split(buf, deps, /[[:space:]]+/)
+			delete seen
+			for (i = 1; i <= ndeps; i++) {
+				if (!((dep = deps[i]) in seen))
+					print dep
+				seen[dep]
+			}
+		}
+	' )
+	debug "deps=[$deps]"
+	for dep in $deps; do
+		echo "$REMOVE" | matches "$dep" || continue
+		REQUIREDBY="$REQUIREDBY$NL$name"
+	done
+done
+REQUIREDBY="${REQUIREDBY#$NL}"
+
+#
+# Produce list of packages requirements
+#
+step2 "$msg_check_for_removal_dependencies"
+if [ ! "$REQUIREDBY" ]; then
+	printf "%s\n" "$msg_all_good"
+else
+	warn "$msg_removal_prevented_by"
+	echo "$REQUIREDBY" | sort | awk '$0="\t"$0' >&2
+	if [ "$FORCE" ]; then
+		warn "$msg_proceeding_anyway"
+	else
+		die "$msg_exiting"
+	fi
+fi
+
+##
+## Remove requested packages
+##
+[ ! "$VCR_DEBUG" ] || step "$msg_remove_packages"
+n=0
+set -- $REMOVE
+for name in "$@"; do
+	n=$(( $n + 1 ))
+	step${VCR_DEBUG:+2} "$name [$n/$#]"
+
+	# Skip remaining actions if given `-n'
+	[ ! "$DRYRUN" ] || continue
+
+	# NB: Actual removal process
+	package="$DESTDIR/$name"
+	eval2 rm -Rf "$package" || die "$fmt_unable_to_remove" "$package"
+done
+
+step "$msg_success"
+exit $SUCCESS
+
+################################################################################
+# END
+################################################################################

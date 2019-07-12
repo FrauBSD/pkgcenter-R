@@ -1,0 +1,991 @@
+#!/bin/sh
+############################################################ IDENT(1)
+#
+# $Title: Script to install R libraries $
+# $Copyright: 2019 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/vcr/libexec/add 2019-07-12 14:05:39 -0700 freebsdfrau $
+#
+############################################################ CONFIGURATION
+
+#
+# URL to CRAN project home
+#
+CRAN_PROJECT_INDEX=https://cran.r-project.org/web/packages/%s/index.html
+
+#
+# Where to store downloads
+#
+VCR_ARCHIVE=~/vcran
+
+#
+# Where to install packages
+#
+VCR_DESTDIR=library
+
+############################################################ ENVIRONMENT
+
+#
+# Debugging
+#
+: ${VCR_DEBUG:=}
+
+#
+# Inherited from vcr
+#
+: ${R:=R}
+: ${R_INHERITED:=}
+: ${VCR_PROGRAM:=vcr}
+
+############################################################ GLOBALS
+
+#
+# Program basename
+#
+case "${UNAME_s:=$( uname -s )}" in
+Linux)
+	pgm=$( readlink -f "$0" )
+	pgm="${pgm##*/}"
+	;;
+*)
+	pgm="${0##*/}"
+esac
+
+#
+# Global exit status
+#
+SUCCESS=0
+FAILURE=1
+
+#
+# Command-line options
+#
+BASE_DESTDIR=	# -b
+DESTDIR=	# -d dir
+DRYRUN=		# -n
+FORCE=		# -f
+HELP=		# -h
+REQFILE=	# -r file
+
+#
+# Literals
+#
+NL="
+" # END-QUOTE
+
+#
+# Miscellaneous
+#
+INSTALLED1=
+INSTALLED2=
+MISSING=
+NPACKAGES=0
+R_PROGRAM=
+
+############################################################ I18N
+
+case "${LANG:-$LC_ALL}" in
+de|de_DE|de_DE.*) # German
+fmt_invalid_package_name="%s: Ungültiger paketname"
+fmt_is_a_directory="%s: Ist ein verzeichnis"
+fmt_no_such_cran_package="%s: Kein solches CRAN-paket"
+fmt_no_such_file_or_directory="Keine solche datei oder ordner"
+fmt_option_cannot_be_combined_with="%s: option kann nicht kombiniert werden mit \`%s'"
+fmt_something_went_wrong_in="Etwas ist schief gelaufen in %s"
+fmt_unable_to_download="%s: Download nicht möglich %s"
+fmt_unable_to_install="Kann nicht installiert werden %s"
+fmt_unable_to_preen_name_from="Name kann nicht abgerufen werden von"
+msg_all_good="Alles gut"
+msg_base_library="basisbibliothek (-b)"
+msg_check_dependencies="Überprüfen sie die abhängigkeiten"
+msg_check_for_missing_dependencies="Suchen sie nach fehlenden abhängigkeiten"
+msg_debug="Debuggen"
+msg_default="Standard"
+msg_destination="Ziel"
+msg_destination_directory="Zielverzeichnis."
+msg_download="Herunterladen"
+msg_dry_run_dont_actually_install_anything="Probelauf. Installieren Sie eigentlich nichts."
+msg_dry_run_enabled="Probelauf aktiviert (-n). Die endgültige installation wird nicht durchgeführt."
+msg_enable_additional_debugging_statements="Aktivieren sie zusätzliche debuggen-Anweisungen."
+msg_exiting="Verlassen."
+msg_fatal="TÖDLICH"
+msg_force_install_even_if_already_installed="Macht. Installieren sie, auch wenn bereits installiert."
+msg_install_packages="Pakete installieren"
+msg_install_requirements_file="Anforderungsdatei installieren."
+msg_library="Bibliothek"
+msg_missing_dependencies="Fehlende abhängigkeiten"
+msg_missing_package_or_url_argument="Fehlendes paket oder URL argument"
+msg_missing_r_interpreter_argument="Fehlendes R interpreterargument"
+msg_options="Optionen"
+msg_performing_post_install_fixups="Durchführen von korrekturen nach der installation"
+msg_positional_arguments_ignored="Positionsargumente ignoriert wenn angegeben \`-r file'"
+msg_print_help_message="Hilfemeldung an stderr ausgeben und beenden."
+msg_success="ERFOLG"
+msg_unable_to_determine_library_path="Bibliothekspfad kann nicht ermittelt werden"
+msg_unable_to_extract_description_file="DESCRIPTION-datei kann nicht extrahiert werden"
+msg_usage="Verwendungszweck"
+msg_use_base_r_library_as_destination="Verwenden sie die base R bibliothek als ziel."
+msg_warning="ACHTUNG"
+;;
+he|he_IL|he_IL.*) # Hebrew
+fmt_invalid_package_name="%s: שם חבילה לא חוקי"
+fmt_is_a_directory="%s: היא ספרייה"
+fmt_no_such_cran_package="%s: אין חבילת CRAN כזו"
+fmt_no_such_file_or_directory="%s: אין כזה קובץ או תקייה"
+fmt_option_cannot_be_combined_with="%s: \`%s' אפשרות לא ניתן לשלב עם"
+fmt_something_went_wrong_in="%s משהו השתבש"
+fmt_unable_to_download="%s: %s לא ניתן להוריד"
+fmt_unable_to_install="%s לא ניתן להתקין"
+fmt_unable_to_preen_name_from="%s לא ניתן לקבל שם מ-"
+msg_all_good="הכל טוב"
+msg_base_library="(-b) ספריית בסיס"
+msg_check_dependencies="בדוק תלויות"
+msg_check_for_missing_dependencies="בדוק אם קיימים תלויות חסרות"
+msg_debug="אשפוז"
+msg_default="ברירת מחדל"
+msg_destination="יעד"
+msg_destination_directory="ספריית יעד."
+msg_download="הורד"
+msg_dry_run_dont_actually_install_anything="ריצה יבשה. לא ממש להתקין שום דבר."
+msg_dry_run_enabled="הפעלה יבשה מופעלת (-n). ההתקנה הסופית לא תתבצע."
+msg_enable_additional_debugging_statements="הפעל הצהרות באגים נוספות."
+msg_exiting="יציאה."
+msg_fatal="פאטאל"
+msg_force_install_even_if_already_installed="כוח. התקן גם אם מותקן כבר."
+msg_install_packages="התקן חבילות"
+msg_install_requirements_file="התקן את קובץ הדרישות."
+msg_library="ספריה"
+msg_missing_dependencies="חסרים חסרים"
+msg_missing_package_or_url_argument="החבילה החסרה או ארגומנט URL"
+msg_missing_r_interpreter_argument="חסר ארגומנט המתורגמן"
+msg_options="אפשרויות"
+msg_performing_post_install_fixups="ביצוע תיקונים לאחר ההתקנה"
+msg_positional_arguments_ignored="ארגומנטים שהתעלמו מהם בעת קבלת \ '-r file'"
+msg_print_help_message="הדפס את הודעת העזרה ל stdr ולצאת."
+msg_success="הצלחה"
+msg_unable_to_determine_library_path="לא ניתן לקבוע נתיב ספריה"
+msg_unable_to_extract_description_file="אין אפשרות לחלץ קובץ DESCRIPTION"
+msg_usage="שימוש"
+msg_use_base_r_library_as_destination="השתמש בסיס R ספריה כיעד."
+msg_warning="אזהרה"
+;;
+pl|pl_PL|pl_PL.*) # Polish
+fmt_invalid_package_name="%s: Nieprawidłowa nazwa pakietu"
+fmt_is_a_directory="%s: Jest katalogiem"
+fmt_no_such_cran_package="%s: Brak takiego pakietu CRAN"
+fmt_no_such_file_or_directory="%s: Brak takiego pliku lub katalogu"
+fmt_option_cannot_be_combined_with="%s: opcja nie może być łączona z \`%s'"
+fmt_something_went_wrong_in="Coś poszło nie tak %s"
+fmt_unable_to_download="%s: Niemożliwe do ściągnięcia %s"
+fmt_unable_to_install="Nie można zainstalować %s"
+fmt_unable_to_preen_name_from="Nie można uzyskać nazwy od %s"
+msg_all_good="Wszystko dobrze"
+msg_base_library="biblioteka bazowa (-b)"
+msg_check_dependencies="Sprawdź zależności"
+msg_check_for_missing_dependencies="Sprawdź brakujące zależności"
+msg_debug="ODPLUSKWIĆ"
+msg_default="Domyślna"
+msg_destination="Przeznaczenie"
+msg_destination_directory="Katalog docelowy."
+msg_download="Ściągnij"
+msg_dry_run_dont_actually_install_anything="Próba. Nie instaluj niczego."
+msg_dry_run_enabled="Próba włączony (-n). Ostateczna instalacja nie zostanie wykonana."
+msg_enable_additional_debugging_statements="Włącz dodatkowe instrukcje debugowania."
+msg_exiting="Wyjście."
+msg_fatal="FATALNY"
+msg_force_install_even_if_already_installed="Siła. Zainstaluj, nawet jeśli jest już zainstalowany."
+msg_install_packages="Zainstaluj pakiety"
+msg_install_requirements_file="Zainstaluj plik wymagań."
+msg_library="Biblioteka"
+msg_missing_dependencies="Brakujące zależności"
+msg_missing_package_or_url_argument="Brakujący pakiet lub argument URL"
+msg_missing_r_interpreter_argument="Brak argumentu interpretera R"
+msg_options="Opcje"
+msg_performing_post_install_fixups="Wykonywanie napraw poinstalacyjnych"
+msg_positional_arguments_ignored="Argumenty pozycyjne ignorowane, gdy podano \`-r file'"
+msg_print_help_message="Wydrukuj komunikat pomocy na stderr i wyjdź."
+msg_success="POWODZENIE"
+msg_unable_to_determine_library_path="Nie można określić ścieżki do biblioteki"
+msg_unable_to_extract_description_file="Nie można wyodrębnić pliku DESCRIPTION"
+msg_usage="Stosowanie"
+msg_use_base_r_library_as_destination="Użyj biblioteki podstawowej R jako miejsca docelowego."
+msg_warning="OSTRZEŻENIE"
+;;
+ru_RU.UTF8) # Russian (Cyrillic)
+fmt_invalid_package_name="%s: Неверное имя пакета"
+fmt_is_a_directory="%s: Это каталог"
+fmt_no_such_cran_package="%s: Нет такого CRAN пакета"
+fmt_no_such_file_or_directory="%s: Данный файл или каталог отсутствует"
+fmt_option_cannot_be_combined_with="%s: опция не может быть объединена с \`%s'"
+fmt_something_went_wrong_in="Что-то пошло не так в %s"
+fmt_unable_to_download="%s: Не в состоянии загрузить %s"
+fmt_unable_to_install="Невозможно установить %s"
+fmt_unable_to_preen_name_from="Невозможно получить имя от %s"
+msg_all_good="Все хорошо"
+msg_base_library="базовая библиотека (-b)"
+msg_check_dependencies="Проверьте зависимости"
+msg_check_for_missing_dependencies="Проверьте на отсутствие зависимостей"
+msg_debug="ОТЛАЖИВАТЬ"
+msg_default="По умолчанию"
+msg_destination="Место назначения"
+msg_destination_directory="Целевой каталог."
+msg_download="Скачать"
+msg_dry_run_dont_actually_install_anything="Пробный прогон. На самом деле ничего не устанавливайте."
+msg_dry_run_enabled="Пробный запуск включен (-n). Окончательная установка не будет выполнена."
+msg_enable_additional_debugging_statements="Включить дополнительные операторы отладки."
+msg_exiting="Выход."
+msg_fatal="ФАТАЛЬНЫЙ"
+msg_force_install_even_if_already_installed="Силы. Установите, даже если он уже установлен."
+msg_install_packages="Установить пакеты"
+msg_install_requirements_file="Установить файл требований."
+msg_library="Библиотека"
+msg_missing_dependencies="Отсутствующие зависимости"
+msg_missing_package_or_url_argument="Отсутствует пакета или URL аргумент"
+msg_missing_r_interpreter_argument="Отсутствует R интерпретатора аргумент"
+msg_options="Опции"
+msg_performing_post_install_fixups="Выполнение исправлений после установки"
+msg_positional_arguments_ignored="Позиционные аргументы игнорируются при задании \`-r file'"
+msg_print_help_message="Распечатать справочное сообщение в stderr и выйти."
+msg_success="УСПЕХ"
+msg_unable_to_determine_library_path="Невозможно определить путь к библиотеке"
+msg_unable_to_extract_description_file="Невозможно извлечь DESCRIPTION файл"
+msg_usage="Использование"
+msg_use_base_r_library_as_destination="Используйте базу R библиотеки в качестве места назначения."
+msg_warning="ПРЕДУПРЕЖДЕНИЕ"
+;;
+ru|ru_RU|ru_RU.*) # Russian (Latin)
+fmt_invalid_package_name="%s: Nevernoye paketa imya"
+fmt_is_a_directory="%s: Eto katalog"
+fmt_no_such_cran_package="%s: Net takogo CRAN paketa"
+fmt_no_such_file_or_directory="%s: Dannyy fayl ili katalog otsutstvuyet"
+fmt_option_cannot_be_combined_with="%s: optsiya ne mozhet byt' ob\"yedinena s \`%s'"
+fmt_something_went_wrong_in="Chto-to poshlo ne tak v %s"
+fmt_unable_to_download="%s: Ne v sostoyanii zagruzit' %s"
+fmt_unable_to_install="Nevozmozhno ustanovit' %s"
+fmt_unable_to_preen_name_from="Nevozmozhno poluchit' imya ot %s"
+msg_all_good="Vse khorosho"
+msg_base_library="bazovaya biblioteka (-b)"
+msg_check_dependencies="Prover'te zavisimosti"
+msg_check_for_missing_dependencies="Prover'te na otsutstviye zavisimostey"
+msg_debug="OTLAZHIVAT'"
+msg_default="Po umolchaniyu"
+msg_destination="Mesto naznacheniya"
+msg_destination_directory="Tselevoy katalog."
+msg_download="Skachat'"
+msg_dry_run_dont_actually_install_anything="Probnyy progon. Na samom dele nichego ne ustanavlivayte."
+msg_dry_run_enabled="Probnyy zapusk vklyuchen (-n). Okonchatel'naya ustanovka ne budet vypolnena."
+msg_enable_additional_debugging_statements="Vklyuchit' dopolnitel'nyye operatory otladki."
+msg_exiting="Vykhod."
+msg_fatal="FATAL'NYY"
+msg_force_install_even_if_already_installed="Sily. Ustanovite, dazhe yesli on uzhe ustanovlen."
+msg_install_packages="Ustanovit' pakety"
+msg_install_requirements_file="Ustanovit' fayl trebovaniy."
+msg_library="Biblioteka"
+msg_missing_dependencies="Otsutstvuyushchiye zavisimosti"
+msg_missing_package_or_url_argument="Otsutstvuyet paketa ili URL argument"
+msg_missing_r_interpreter_argument="Otsutstvuyet R interpretatora argument"
+msg_options="Optsii"
+msg_performing_post_install_fixups="Vypolneniye ispravleniy posle ustanovki"
+msg_positional_arguments_ignored="Pozitsionnyye argumenty ignoriruyutsya pri zadanii \`-r file'"
+msg_print_help_message="Raspechatat' spravochnoye soobshcheniye v stderr i vyyti."
+msg_success="USPEKH"
+msg_unable_to_determine_library_path="Nevozmozhno opredelit' put' k biblioteke"
+msg_unable_to_extract_description_file="Nevozmozhno izvlech' DESCRIPTION fayl"
+msg_usage="Ispol'zovaniye"
+msg_use_base_r_library_as_destination="Ispol'zuyte bazu R biblioteki v kachestve mesta naznacheniya."
+msg_warning="PREDUPREZHDENIYe"
+;;
+zh_CN.UTF8) # Chinese (Simplified)
+fmt_invalid_package_name="%s: 包名称无效"
+fmt_is_a_directory="%s: 是一个目录"
+fmt_no_such_cran_package="%s: 没有这样的CRAN包"
+fmt_no_such_file_or_directory="%s: 没有相应的文件和目录"
+fmt_option_cannot_be_combined_with="%s: 选项不能与 \`%s'"
+fmt_something_went_wrong_in="出了点问题 %s"
+fmt_unable_to_download="%s: 无法下载 %s"
+fmt_unable_to_install="无法安装 %s"
+fmt_unable_to_preen_name_from="无法从中获取名称 %s"
+msg_all_good="都好"
+msg_base_library="基础库 (-b)"
+msg_check_dependencies="检查依赖项"
+msg_check_for_missing_dependencies="检查缺少的依赖项"
+msg_debug="调试"
+msg_default="默认"
+msg_destination="目的地"
+msg_destination_directory="目标目录。"
+msg_download="下载"
+msg_dry_run_dont_actually_install_anything="干运行。 实际上不要安装任何东西。"
+msg_dry_run_enabled="启用空运行（-n）。 不会执行最终安装。"
+msg_enable_additional_debugging_statements="启用其他调试语句。"
+msg_exiting="退出。"
+msg_fatal="致命"
+msg_force_install_even_if_already_installed="力。 即使已经安装也要安装。"
+msg_install_packages="安装包"
+msg_install_requirements_file="安装需求文件。"
+msg_library="图书馆"
+msg_missing_dependencies="缺少依赖项"
+msg_missing_package_or_url_argument="缺少包或URL参数"
+msg_missing_r_interpreter_argument="缺少R解释器参数"
+msg_options="选项"
+msg_performing_post_install_fixups="执行安装后修复"
+msg_positional_arguments_ignored="给定 \`-r file' 时忽略位置参数"
+msg_print_help_message="将帮助消息打印到stderr并退出。"
+msg_success="成功"
+msg_unable_to_determine_library_path="无法确定库路径"
+msg_unable_to_extract_description_file="无法提取DESCRIPTION文件"
+msg_usage="用法"
+msg_use_base_r_library_as_destination="使用基本R库作为目标。"
+msg_warning="警告"
+;;
+zh|zh_CN|zh_CN.*) # Chinese (Latin)
+fmt_invalid_package_name="%s: Bāo míngchēng wúxiào"
+fmt_is_a_directory="%s: Shì yīgè mùlù"
+fmt_no_such_cran_package="%s: Méiyǒu zhèyàng de CRAN bāo"
+fmt_no_such_file_or_directory="%s: Méiyǒu xiāngyìng de wénjiàn hé mùlù"
+fmt_option_cannot_be_combined_with="%s: Xuǎnxiàng bùnéng yǔ \`%s'"
+fmt_something_went_wrong_in="Chūle diǎn wèntí %s"
+fmt_unable_to_download="%s: Wúfǎ xiàzài %s"
+fmt_unable_to_install="Wúfǎ ānzhuāng %s"
+fmt_unable_to_preen_name_from="Wúfǎ cóngzhōng huòqǔ míngchēng %s"
+msg_all_good="Dōu hǎo"
+msg_base_library="Jīchǔ kù (-b)"
+msg_check_dependencies="Jiǎnchá yīlài xiàng"
+msg_check_for_missing_dependencies="Jiǎnchá quēshǎo de yīlài xiàng"
+msg_debug="TIÁOSHÌ"
+msg_default="Mòrèn"
+msg_destination="Mùdì de"
+msg_destination_directory="Mùbiāo mùlù."
+msg_download="Xiàzài"
+msg_dry_run_dont_actually_install_anything="Gàn yùnxíng. Shíjì shang bùyào ānzhuāng rènhé dōngxī."
+msg_dry_run_enabled="Qǐyòng kōng yùnxíng (-n). Bù huì zhíxíng zuìzhōng ānzhuāng."
+msg_enable_additional_debugging_statements="Qǐyòng qítā tiáoshì yǔjù."
+msg_exiting="Tuìchū."
+msg_fatal="ZHÌMÌNG"
+msg_force_install_even_if_already_installed="Lì. Jíshǐ yǐjīng ānzhuāng yě yào ānzhuāng."
+msg_install_packages="Ānzhuāng bāo"
+msg_install_requirements_file="Ānzhuāng xūqiú wénjiàn."
+msg_library="Túshū guǎn"
+msg_missing_dependencies="Quēshǎo yīlài xiàng"
+msg_missing_package_or_url_argument="Quēshǎo bāo huò URL cānshù"
+msg_missing_r_interpreter_argument="Quēshǎo R jiěshì qì cānshù"
+msg_options="Xuǎnxiàng"
+msg_performing_post_install_fixups="Zhíxíng ānzhuāng hòu xiūfù"
+msg_positional_arguments_ignored="Gěi dìng \`-r file' shí hūlüè wèizhì cānshù"
+msg_print_help_message="Jiāng bāngzhù xiāoxī dǎyìn dào stderr bìng tuìchū."
+msg_success="CHÉNGGŌNG"
+msg_unable_to_determine_library_path="Wúfǎ quèdìng kù lùjìng"
+msg_unable_to_extract_description_file="Wúfǎ tíqǔ DESCRIPTION wénjiàn"
+msg_usage="Yòngfǎ"
+msg_use_base_r_library_as_destination="Shǐyòng jīběn R kù zuòwéi mùbiāo."
+msg_warning="JǏNGGÀO"
+;;
+*) # English
+fmt_invalid_package_name="%s: Invalid package name"
+fmt_is_a_directory="%s: Is a directory"
+fmt_no_such_cran_package="%s: No such CRAN package"
+fmt_no_such_file_or_directory="%s: No such file or directory"
+fmt_option_cannot_be_combined_with="%s: option cannot be combined with \`%s'"
+fmt_something_went_wrong_in="Something went wrong in %s"
+fmt_unable_to_download="%s: Unable to download %s"
+fmt_unable_to_install="Unable to install %s"
+fmt_unable_to_preen_name_from="Unable to preen name from %s"
+msg_all_good="All good"
+msg_base_library="base library (-b)"
+msg_check_dependencies="Check dependencies"
+msg_check_for_missing_dependencies="Check for missing dependencies"
+msg_debug="DEBUG"
+msg_default="Default"
+msg_destination="Destination"
+msg_destination_directory="Destination directory."
+msg_download="Download"
+msg_dry_run_dont_actually_install_anything="Dry run. Don't actually install anything."
+msg_dry_run_enabled="Dry run enabled (-n). Final install will not be performed."
+msg_enable_additional_debugging_statements="Enable additional debugging statements."
+msg_exiting="Exiting."
+msg_fatal="FATAL"
+msg_force_install_even_if_already_installed="Force. Install even if already installed."
+msg_install_packages="Install packages"
+msg_install_requirements_file="Install requirements file."
+msg_library="Library"
+msg_missing_dependencies="Missing dependencies"
+msg_missing_package_or_url_argument="Missing package or URL argument"
+msg_missing_r_interpreter_argument="Missing R interpreter argument"
+msg_options="Options"
+msg_performing_post_install_fixups="Performing post-install fixups"
+msg_positional_arguments_ignored="Positional arguments ignored when given \`-r file'"
+msg_print_help_message="Print help message to stderr and exit."
+msg_success="SUCCESS"
+msg_unable_to_determine_library_path="Unable to determine library path"
+msg_unable_to_extract_description_file="Unable to extract DESCRIPTION file"
+msg_usage="Usage"
+msg_use_base_r_library_as_destination="Use base R library as destination."
+msg_warning="WARNING"
+esac
+
+############################################################ FUNCTIONS
+
+have(){ type "$@" > /dev/null 2>&1; }
+exists(){ [ -e "$1" ]; }
+matches(){ awk -v line="$1" '$0==line{exit ++found}END{exit !found}'; }
+
+usage()
+{
+	local optfmt="\t%-10s %s\n"
+	exec >&2
+	printf "$msg_usage: %s %s [-Dfhn] [-b | -d dir] [-r file] [--] " \
+		"$VCR_PROGRAM" "$pgm"
+	if [ "$R_INHERITED" ]; then
+		printf "pkg[==vers] | url ...\n"
+	else
+		printf "R pkg[==vers] | url ...\n"
+	fi
+	printf "$msg_options:\n"
+	printf "$optfmt" "-b" "$msg_use_base_r_library_as_destination"
+	printf "$optfmt" "-D" "$msg_enable_additional_debugging_statements"
+	printf "$optfmt" "-d dir" \
+		"$msg_destination_directory $msg_default \`$VCR_DESTDIR'."
+	printf "$optfmt" "-f" "$msg_force_install_even_if_already_installed"
+	printf "$optfmt" "-h" "$msg_print_help_message"
+	printf "$optfmt" "-n" "$msg_dry_run_dont_actually_install_anything"
+	printf "$optfmt" "-r file" "$msg_install_requirements_file"
+	printf "$R $msg_base_library:\n"
+	printf "\t%s\n" "$( R -e "'cat(.libPaths(.Library))'" 3> /dev/null )"
+	exit $FAILURE
+}
+
+exec 3<&1
+if [ -t 1 ]; then # stdout is a tty
+	eval2(){ printf "\e[2m%s\e[m\n" "$*" >&3; eval "$@"; }
+	step(){ printf "\e[32;1m==>\e[39m %s\e[m\n" "$*"; }
+	step2(){ [ ! "$VCR_DEBUG" ] ||
+		printf "\e[32;1m->\e[39m %s\e[m\n" "$*"; }
+	step3(){ [ ! "$VCR_DEBUG" ] ||
+		printf "\e[32;1m>\e[39m %s\e[m\n" "$*"; }
+	warn(){ printf "\e[33;1m$msg_warning!\e[m %s\n" "$*" >&2; }
+
+	die()
+	{
+		local fmt="$1"
+		if [ "$fmt" ]; then
+			shift 1 # fmt
+			printf "\e[1;31m$msg_fatal!\e[m $fmt\n" "$@" >&2
+		fi
+		exit $FAILURE
+	}
+
+	debug()
+	{
+		[ ! "$VCR_DEBUG" ] && return
+		local fmt="$1"
+		shift 1 # fmt
+		printf "\e[35m$msg_debug\e[m $fmt\n" "$@" >&2
+	}
+
+else # stdout is not a tty
+	eval2(){ printf "%s\n" "$*" >&3; eval "$@"; }
+	step(){ printf "==> %s\n" "$*"; }
+	step2(){ [ ! "$VCR_DEBUG" ] || printf "-> %s\n" "$*"; }
+	step3(){ [ ! "$VCR_DEBUG" ] || printf "> %s\n" "$*"; }
+	warn(){ printf "$msg_warning! %s\n" "$*" >&2; }
+
+	die()
+	{
+		local fmt="$1"
+		if [ "$fmt" ]; then
+			shift 1 # fmt
+			printf "$msg_fatal! $fmt\n" "$@" >&2
+		fi
+		exit $FAILURE
+	}
+
+	debug()
+	{
+		[ ! "$VCR_DEBUG" ] && return
+		local fmt="$1"
+		shift 1 # fmt
+		printf "$msg_debug $fmt\n" "$@" >&2
+	}
+fi
+
+cran_attr()
+{
+	local n="$1"
+	local vers latest_file index_url
+
+	# Variables returned to caller
+	eval name=\"\$name$n\"
+	src_name=
+	src_uri=
+	src_url=
+
+	index_url=$( printf "$CRAN_PROJECT_INDEX" "$name" )
+	eval vers=\"\$vers$n\"
+	case "$vers" in
+	[Ll][Aa][Tt][Ee][Ss][Tt]) # latest
+		latest_file="$VCR_ARCHIVE/$name-latest.txt"
+		if [ ! -e "$latest_file" ]; then
+			src_uri=$( eval2 curl -sLo- "$index_url" |
+				grep -o 'href="../../../src/contrib/[^"]*'
+			) || die "$fmt_no_such_cran_package" "$name"
+			src_uri="${src_uri#href=\"}"
+			src_name="${src_uri##*/}"
+			echo "$src_name" > "$latest_file"
+		else
+			src_name=$( cat "$latest_file" )
+			src_uri="../../../src/contrib/$src_name"
+		fi
+		;;
+	*)
+		src_name="${name}_$vers.tar.gz"
+		src_uri="../../../src/contrib/$src_name"
+	esac
+	src_url="${index_url%/*}/$src_uri"
+}
+
+serialize_args()
+{
+	while [ $# -gt 0 ]; do
+		printf "nextArg%s" "$1"
+		shift 1
+	done
+}
+
+R()
+{
+	eval2 command $R --slave --no-restore "$@"
+}
+
+if have realpath; then
+	: good
+elif have readlink; then
+	realpath(){ readlink -f "$@"; }
+elif have perl; then
+	realpath(){ perl -le 'use Cwd; print Cwd::abs_path(@ARGV);' -- "$@"; }
+else
+	realpath(){ echo "$@"; }
+fi
+
+############################################################ MAIN
+
+set -e # errexit
+
+#
+# Process command-line options
+#
+while getopts bDd:fhnr: flag; do
+	case "$flag" in
+	b) if [ "$DESTDIR" ]; then
+		die "$fmt_option_cannot_be_combined_with" "-b" "-d dir"
+	   else
+		BASE_DESTDIR=1
+	   fi ;;
+	D) VCR_DEBUG=1 ;;
+	d) if [ "$BASE_DESTDIR" ]; then
+		die "$fmt_option_cannot_be_combined_with" "-d" "-b"
+	   else
+		DESTDIR="$OPTARG"
+	   fi ;;
+	f) FORCE=1 ;;
+	h) HELP=1 ;;
+	n) DRYRUN=1
+	   warn "$msg_dry_run_enabled" ;;
+	r) REQFILE="$OPTARG" ;;
+	*) usage # NOTREACHED
+	esac
+done
+shift $(( $OPTIND - 1 ))
+
+#
+# Check command-line arguments
+#
+: ${DESTDIR:=$VCR_DESTDIR} # Default destination directory
+if [ $# -lt 1 ]; then
+	if [ "$R_INHERITED" ]; then
+		if [ "$REQFILE" ]; then
+			[ -e "$REQFILE" ] ||
+				die "$fmt_no_such_file_or_directory" "$REQFILE"
+			[ ! -d "$REQFILE" ] ||
+				die "$fmt_is_a_directory" "$REQFILE"
+		elif [ ! "$HELP" ]; then
+			warn "$msg_missing_package_or_url_argument"
+			usage
+			# NOTREACHED
+		fi
+	elif [ ! "$HELP" ]; then
+		warn "$msg_missing_r_interpreter_argument"
+		usage
+		# NOTREACHED
+	fi
+fi
+if [ ! "$R_INHERITED" ]; then
+	if [ $# -gt 0 ]; then
+		R="$1"
+		shift 1 # R
+	fi
+	if [ $# -lt 1 -a ! "$HELP" ]; then
+		if [ "$REQFILE" ]; then
+			[ -e "$REQFILE" ] ||
+				die "$fmt_no_such_file_or_directory" "$REQFILE"
+			[ ! -d "$REQFILE" ] ||
+				die "$fmt_is_a_directory" "$REQFILE"
+		else
+			warn "$msg_missing_package_or_url_argument"
+			usage
+			# NOTREACHED
+		fi
+	fi
+elif [ "$REQFILE" -a ! "$HELP" ]; then
+	[ -e "$REQFILE" ] || die "$fmt_no_such_file_or_directory" "$REQFILE"
+	[ ! -d "$REQFILE" ] || die "$fmt_is_a_directory" "$REQFILE"
+fi
+
+#
+# Display usage with proper base DESTDIR if given `-h'
+#
+[ ! "$HELP" ] || usage # NOTREACHED
+
+#
+# Process command-line arguments
+#
+if [ "$REQFILE" ]; then
+	[ $# -lt 1 ] || warn "$msg_positional_arguments_ignored"
+	export fmt_invalid_package_name
+	eval "$( awk '
+		BEGIN { n = 0 }
+		function escape(str) {
+			gsub(/'\''/, "&\\\\&&", str)
+			return str
+		}
+		function setvar(var, value) {
+			printf "%s='\''%s'\''\n", var, escape(value)
+		}
+		function die1(fmt, arg1) {
+			printf "die '\''%s'\'' '\''%s'\''\n",
+				escape(fmt), escape(arg1)
+			exit
+		}
+		/^[[:space:]](#|$)/ { next }
+		$1 ~ /'\''|[[:space:]]/ {
+			die1(ENVIRON["fmt_invalid_package_name"], $1)
+			# NOTREACHED
+		}
+		$1 ~ /==/ {
+			name = vers = $1
+			sub(/==.*/, "", name)
+			sub(/.*==/, "", vers)
+			n++
+			setvar("name" n, name)
+			setvar("vers" n, vers)
+			setvar("url" n, "")
+			next
+		}
+		$1 == "-u" && $2 ~ "://" {
+			n++
+			setvar("url" n, $2)
+			next
+		}
+		{
+			n++
+			setvar("name" n, $1)
+			setvar("vers" n, "latest")
+			setvar("url" n, "")
+		}
+		END {
+			setvar("NPACKAGES", n)
+		}
+	' "$REQFILE" )"
+
+else # No REQFILE
+	while [ $# -gt 0 ]; do
+		NPACKAGES=$(( $NPACKAGES + 1 ))
+		n=$NPACKAGES
+		case "$1" in
+		*"'"*|*[$IFS]*)
+			die "$fmt_invalid_package_name" "$1"
+			# NOTREACHED
+			;;
+		*==*)
+			eval name$n=\'${1%%==*}\'
+			eval vers$n=\'${1#*==}\'
+			eval url$n=
+			;;
+		*://*)
+			eval url$n=\'$1\'
+			;;
+		*)
+			eval name$n=\'$1\'
+			eval vers$n=latest
+			eval url$n=
+		esac
+		shift 1
+	done
+fi
+
+#
+# Create directories
+#
+mkdir -p "$VCR_ARCHIVE"
+
+#
+# Download package sources
+#
+step "$msg_download"
+n=0
+while [ $n -lt $NPACKAGES ]; do
+	n=$(( $n + 1 ))
+
+	# Determine remote provider
+	eval url=\"\$url$n\"
+	case "$url" in
+	"") # CRAN
+		preen_name=
+		cran_attr $n # sets name src_{name,uri,url}
+		check_archive=1
+		eval save_url$n=
+		;;
+	*) # Supplied URL
+		preen_name=1
+		src_name=$( echo "$url" | awk '{
+			sub("^[^:]*://", "")
+			gsub(/\?.*/, "")
+			gsub(".*/", "")
+			print
+			exit
+		}' )
+		src_uri="$src_name"
+		src_url="$url"
+		check_archive=
+		eval save_url$n=1
+	esac
+
+	# Stash finalized details for next steps
+	eval src_name$n=\"\$src_name\"
+
+	# Fetch from provider
+	src_file="$VCR_ARCHIVE/$src_name"
+	if [ -e "$src_file" ]; then
+		if [ "$preen_name" ]; then
+			name=$( eval2 tar tzf "$src_file" | awk '
+				sub("/DESCRIPTION$","")&&$0!~"/"{print;exit}
+			' )
+			[ "$name" ] || die "$fmt_unable_to_preen_name_from" \
+				"$src_file"
+			eval name$n=\"\$name\"
+		fi
+		continue
+	fi
+	trap 'rm -f "$src_file"' SIGINT EXIT
+	eval2 curl -Lo "$src_file" "$src_url" ||
+		die "$fmt_unable_to_download" "$name" "$src_name"
+	trap - SIGINT EXIT
+	if [ "$preen_name" ]; then
+		name=$( eval2 tar tzf "$src_file" |
+			awk 'sub("/DESCRIPTION$","")&&$0!~"/"{print;exit}' )
+		[ "$name" ] || die "$fmt_unable_to_preen_name_from" "$src_file"
+		eval name$n=\"\$name\"
+	fi
+
+	# Re-fetch from provider archive if we got an HTML file
+	case "$( file "$src_file" )" in
+	*HTML*) # Check the Archive
+		if [ "$check_archive" ]; then
+			src_url="${src_url%"$src_uri"}"
+			src_uri="${src_uri%/*}/Archive/$name/$src_name"
+			src_url="$src_url$src_uri"
+			eval2 curl -Lo "$src_file" "$src_url" || die \
+				"$fmt_unable_to_download" "$name" "$src_name"
+		else
+			rm -f "$VCR_ARCHIVE/$src_name"
+			die "$fmt_unable_to_download" "$name" "$src_name"
+		fi
+		;;
+	esac
+done
+
+##
+## Check package dependencies
+##
+step "$msg_check_dependencies"
+
+#
+# Get a list of libraries installed in the base R library
+#
+step2 "R $msg_library"
+library=$( R -e "'cat(.libPaths(.Library))'" ) ||
+	die "$msg_unable_to_determine_library_path"
+debug "library=[$library]"
+INSTALLED1="R
+$(
+	for dir in "$library"/*; do
+		[ -e "$dir/DESCRIPTION" ] || continue
+		echo "${dir##*/}"
+	done
+)" || die "$fmt_something_went_wrong_in" "$library"
+debug "INSTALLED1=[$( echo $INSTALLED1 )]"
+
+#
+# Add libraries already installed in the destination directory
+#
+if [ "$BASE_DESTDIR" ]; then
+	DESTDIR="$library"
+	debug "DESTDIR=[$DESTDIR]"
+else
+	step2 "$msg_destination $msg_library"
+	debug "DESTDIR=[$DESTDIR]"
+	[ ! -d "$DESTDIR" ] || INSTALLED2=$(
+		for dir in "$DESTDIR"/*; do
+			[ -e "$dir/DESCRIPTION" ] || continue
+			echo "${dir##*/}"
+		done
+	) || die "$fmt_something_went_wrong_in" "$DESTDIR"
+	debug "INSTALLED2=[$( echo $INSTALLED2 )]"
+fi
+
+#
+# Verify dependencies are installed for each package
+# NB: This is cursory; R will do a more complete check at install time
+#
+n=0
+while [ $n -lt $NPACKAGES ]; do
+	n=$(( $n + 1 ))
+	eval name=\"\$name$n\"
+	step2 "$name [$n/$NPACKAGES]"
+	eval src_name=\"\$src_name$n\"
+	package="$VCR_ARCHIVE/$src_name"
+	deps_file="${package%.t*}-deps.txt"
+	if [ -e "$deps_file" ]; then
+		deps=$( eval2 cat "$deps_file" )
+	else
+		descr=$( eval2 tar zxfO "$package" "$name/DESCRIPTION" ) ||
+			die "$msg_unable_to_extract_description_file"
+		depinfo=$(
+			[ "$VCR_DEBUG" ] || exec 2> /dev/null
+			echo "$descr" | awk '
+				BEGIN { catch = "^(Depends|Imports):" }
+				$0 ~ catch && ++start, $0 ~ /^[^[:space:]]/ &&
+					$1 !~ catch && stop = 1 { }
+				!start { next }
+				!stop { print; next }
+				{ start = stop = 0 }
+			' | tee /dev/stderr
+		)
+		deps=$( echo "$depinfo" | awk '
+			{
+				sub(/^[^[:space:]]+:/, "")
+				buf = buf " " $0
+			}
+			END {
+				gsub(/\([^)]+\)/, "", buf)
+				gsub(/,/, " ", buf)
+				sub(/^[[:space:]]*/, "", buf)
+				sub(/[[:space:]]*$/, "", buf)
+				ndeps = split(buf, deps, /[[:space:]]+/)
+				delete seen
+				for (i = 1; i <= ndeps; i++) {
+					if (!((dep = deps[i]) in seen))
+						print dep
+					seen[dep]
+				}
+			}
+		' )
+		debug "deps=[$deps]"
+		echo "$deps" > "$deps_file"
+	fi
+	for dep in $deps; do
+		echo "$INSTALLED1" | matches "$dep" && continue
+		echo "$INSTALLED2" | matches "$dep" && continue
+		echo "$MISSING" | matches "$dep" && continue
+		MISSING="$MISSING$NL$dep"
+	done
+	INSTALLED1="$INSTALLED1$NL$name"
+done
+MISSING="${MISSING#$NL}"
+
+#
+# Produce list of missing packages
+#
+step2 "$msg_check_for_missing_dependencies"
+if [ ! "$MISSING" ]; then
+	printf "%s\n" "$msg_all_good"
+else
+	warn "$msg_missing_dependencies"
+	echo "$MISSING" | sort | awk '$0="\t"$0' >&2
+	die "$msg_exiting"
+fi
+
+##
+## Install requested package source tarballs
+##
+[ ! "$VCR_DEBUG" ] || step "$msg_install_packages"
+
+#
+# Create target directory
+#
+mkdir -p "$DESTDIR"
+
+#
+# Bootstrap the compiler toolchain based on Operating System
+#
+case "$( cat /etc/redhat-release )" in
+*" 6."*) . /opt/rh/devtoolset-2/enable || exit 1 ;;
+esac
+
+#
+# Generate R invocation line for fixups
+#
+set -- $R
+R_PROGRAM="$1"
+case "$R_PROGRAM" in
+/*) RINV="$*" ;;
+*/*)
+	shift 1 # R_PROGRAM
+	RINV="$( realpath "$R_PROGRAM" )${*:+ $*}"
+	;;
+*)
+	shift 1 # R_PROGRAM
+	RINV="$( which "$R_PROGRAM" )${*:+ $*}"
+esac
+debug "RINV=[$RINV]"
+
+#
+# Install each package
+#
+n=0
+while [ $n -lt $NPACKAGES ]; do
+	n=$(( $n + 1 ))
+	eval name=\"\$name$n\"
+	step${VCR_DEBUG:+2} "$name [$n/$NPACKAGES]"
+	[ "$FORCE" -o ! -e "$DESTDIR/$name" ] || continue
+	eval src_name=\"\$src_name$n\"
+	srcfile="$VCR_ARCHIVE/$src_name"
+	[ -e "$srcfile" ] ||
+		die "$fmt_no_such_file_or_directory" "$srcfile"
+
+	# Skip remaining actions if given `-n'
+	[ ! "$DRYRUN" ] || continue
+
+	# NB: Actual install process
+	echo 'tools:::.install_packages()' |
+		eval2 $R --slave --no-restore --args $( serialize_args \
+			--no-test-load -l "$DESTDIR" "$srcfile"
+		) || die "%s: $fmt_unable_to_install" "$name" "${srcfile##*/}"
+
+	# Save details for non-CRAN packages
+	eval save_url=\"\$save_url$n\"
+	if [ "$save_url" ]; then
+		eval url=\"\$url$n\"
+		echo "$url" > "$DESTDIR/$name/vcr-url.txt"
+	fi
+
+	# Fixups
+	step3 "$msg_performing_post_install_fixups"
+	for file in $( grep -Ilrs '^#[!]/usr/bin/r\>' "$DESTDIR" ); do
+		eval2 sed -i -e "'s%^\\(#[!]\\)/usr/bin/r\>%\\1$RINV%'" $file
+	done
+done
+
+step "$msg_success"
+exit $SUCCESS
+
+################################################################################
+# END
+################################################################################

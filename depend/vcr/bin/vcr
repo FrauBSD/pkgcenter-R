@@ -1,0 +1,264 @@
+#!/bin/sh
+############################################################ IDENT(1)
+#
+# $Title: Script to access other scripts in the `libexec/vcr' directory $
+# $Copyright: 2019 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/vcr/bin/vcr 2019-07-12 14:05:39 -0700 freebsdfrau $
+#
+############################################################ CONFIGURATION
+
+LIBEXEC=/usr/libexec/vcr
+
+############################################################ ENVIRONMENT
+
+#
+# Debugging
+#
+export VCR_DEBUG
+
+#
+# Information to pass to modules
+#
+export R=R
+export R_INHERITED=
+export VCR_PROGRAM # pgm
+
+############################################################ GLOBALS
+
+VERSION='$Version: 4.8.3 $'
+
+pgm="${0##*/}" # program basename
+progdir="${0%/*}" # program directory
+
+VCR_PROGRAM="$pgm"
+
+#
+# Global exit status
+#
+SUCCESS=0
+FAILURE=1
+
+#
+# OS Glue
+#
+case "${UNAME_s:=$( uname -s )}" in
+Linux)
+	findutils=$( rpm -q --qf "%{VERSION}" findutils 2> /dev/null )
+	case "$findutils" in
+	4.[56].*) EXEC_PERMS="/111" ;;
+	*) EXEC_PERMS="+111"
+	esac
+	;;
+*)
+	EXEC_PERMS="+111"
+esac
+
+############################################################ I18N
+
+case "${LANG:-$LC_ALL}" in
+de|de_DE|de_DE.*) # German
+msg_commands="Befehle"
+msg_enable_debug_messages="Debug-Meldungen aktivieren. Kann mehrfach verwendet werden."
+msg_options="Optionen"
+msg_print_help_message="Hilfemeldung an stderr ausgeben und beenden."
+msg_print_version_and_exit="Druckversion und beenden."
+msg_usage="Verwendungszweck"
+;;
+he|he_IL|he_IL.*) # Hebrew
+msg_commands="פקודות"
+msg_enable_debug_messages="הפעל הודעות באגים.
+	      ניתן להשתמש מספר פעמים."
+msg_options="אפשרויות"
+msg_print_help_message="הדפס את הודעת העזרה ל stdr ולצאת."
+msg_print_version_and_exit="הדפס גרסה ויציאה."
+msg_usage="שימוש"
+;;
+pl|pl_PL|pl_PL.*) # Polish
+msg_commands="Polecenia"
+msg_enable_debug_messages="Włącz komunikaty debugowania. Może być używany wielokrotnie."
+msg_options="Opcje"
+msg_print_help_message="Wydrukuj komunikat pomocy na stderr i wyjdź."
+msg_print_version_and_exit="Wydrukuj wersję i wyjdź."
+msg_usage="Stosowanie"
+;;
+ru_RU.UTF8) # Russian (Cyrillic)
+msg_commands="Команды"
+msg_enable_debug_messages="Включить отладочные сообщения.
+	      Можно использовать несколько раз."
+msg_options="Опции"
+msg_print_help_message="Распечатать справочное сообщение в stderr и выйти."
+msg_print_version_and_exit="Версия для печати и выход."
+msg_usage="Использование"
+;;
+ru|ru_RU|ru_RU.*) # Russian (Latin)
+msg_commands="Komandy"
+msg_enable_debug_messages="Vklyuchit' otladochnyye soobshcheniya.
+	      Mozhno ispol'zovat' neskol'ko raz."
+msg_options="Optsii"
+msg_print_help_message="Raspechatat' spravochnoye soobshcheniye v stderr i vyyti."
+msg_print_version_and_exit="Versiya dlya pechati i vykhod."
+msg_usage="Ispol'zovaniye"
+;;
+zh_CN.UTF8) # Chinese (Simplified)
+msg_commands="命令"
+msg_enable_debug_messages="启用调试消息。可以多次使用。"
+msg_options="选项"
+msg_print_help_message="将帮助消息打印到stderr并退出。"
+msg_print_version_and_exit="打印版本并退出。"
+msg_usage="用法"
+;;
+zh|zh_CN|zh_CN.*) # Chinese (Latin)
+msg_commands="Mìnglìng"
+msg_enable_debug_messages="Qǐyòng tiáoshì xiāoxī. Kěyǐ duō cì shǐyòng."
+msg_options="Xuǎnxiàng"
+msg_print_help_message="Jiāng bāngzhù xiāoxī dǎyìn dào stderr bìng tuìchū."
+msg_print_version_and_exit="Dǎyìn bǎnběn bìng tuìchū."
+msg_usage="Yòngfǎ"
+;;
+*) # English
+msg_commands="Commands"
+msg_enable_debug_messages="Enable debug messages. Can be used multiple times."
+msg_options="Options"
+msg_print_help_message="Print help message to stderr and exit."
+msg_print_version_and_exit="Print version and exit."
+msg_usage="Usage"
+esac
+
+############################################################ FUNCTIONS
+
+have(){ type "$@" > /dev/null 2>&1; }
+
+if have realpath; then
+	: good
+elif have readlink; then
+	realpath(){ readlink -f "$@"; }
+elif have perl; then
+	realpath(){ perl -le 'use Cwd; print Cwd::abs_path(@ARGV);' -- "$@"; }
+else
+	realpath(){ echo "$@"; }
+fi
+
+usage()
+{
+	local optfmt="\t%-5s %s\n"
+	local cmd_list= # Calculated below
+
+	# If our libexec dir exists, get a list of [executable] files within
+	cmd_list=$(
+		cd "$LIBEXEC" || exit
+		for file in $(
+			find . -xdev -maxdepth 1 -not -type d -perm $EXEC_PERMS
+		); do
+			file="${file##*/}"
+			if [ -L "$file" ]; then
+				rfile=$( realpath "$file" )
+				rfile="${rfile##*/}"
+				[ "$file" != "$rfile" ] &&
+					file="$file [$rfile]"
+			fi
+			echo "$file"
+		done | sort
+	)
+
+	# Determine the longest command-length vs terminal width
+	local max_size="$( stty size 2> /dev/null )"
+	local max_width="${max_size#*[$IFS]}"
+	local longest_cmd="$( echo "$cmd_list" | awk '
+		{ longest = ((len = length($0)) > longest ? len : longest) }
+		END { print longest }
+	' )"
+
+	# Using the longest command-length as the width of a single column,
+	# determine if we can use more than one column to display commands.
+	local x=$longest_cmd ncols=1
+	x=$(( $x + 8 )) # Accommodate leading tab character
+	x=$(( $x + 3 + $longest_cmd )) # Preload end of next column
+	while [ $x -lt ${max_width:=80} ]; do
+		ncols=$(( $ncols + 1 ))
+		x=$(( $x + 3 + $longest_cmd ))
+	done
+
+	# Re-format the command-list into multiple columns
+	cmd_list=$( eval "$( echo "$cmd_list" |
+		awk -v ncols=$ncols -v size=$longest_cmd '
+		BEGIN { row_item[1] = "" }
+		function print_row() {
+			fmt = "printf \"\\t%-" size "s"
+			for (i = 1; i < cur_col; i++)
+				fmt = fmt "   %-" size "s"
+			fmt = fmt "\\n\""
+			printf "%s", fmt
+			for (i = 1; i <= cur_col; i++)
+				printf " \"%s\"", row_item[i]
+			print ""
+		} {
+			cur_col = ((NR - 1) % ncols) + 1
+			row_item[cur_col] = $0
+			if (cur_col == ncols) print_row()
+		}
+		END { if (cur_col < ncols) print_row() }
+	' )" )
+
+	exec >&2
+	printf "$msg_usage: %s [options] [--] [command [args ...]]\n" "$pgm"
+	printf "$msg_options:\n"
+	printf "$optfmt" "-D" "$msg_enable_debug_messages"
+	printf "$optfmt" "-h" "$msg_print_help_message"
+	printf "$optfmt" "-v" "$msg_print_version_and_exit"
+	printf "$msg_commands:\n%s\n" "$cmd_list"
+	exit $FAILURE
+}
+
+############################################################ MAIN
+
+#
+# Process command-line options
+#
+while getopts Dhv flag; do
+	case "$flag" in
+	D) VCR_DEBUG=$(( ${VCR_DEBUG:-0} + 1 )) ;;
+	v) # version
+		VERSION="${VERSION#*: }"
+		echo "${VERSION% ?}"
+		exit $SUCCESS
+		;;
+	*) usage # NOTREACHED
+	esac
+done
+shift $(( $OPTIND - 1 ))
+
+#
+# Validate command-line arguments
+#
+[ $# -gt 0 ] || usage
+
+#
+# Pass desired R interpreter to vcr modules based on invocation name
+#
+case "$pgm" in
+*-*) # Use R based on our name
+	R="R-${pgm#*-}"
+	R_INHERITED=1
+	;;
+esac
+
+#
+# Hand execution over to vcr module
+#
+COMMAND=${1%%[^a-zA-Z_0-9.-]*}
+shift
+case "$VCR_DEBUG" in
+""|*[!0-9]*) exec $LIBEXEC/$COMMAND "$@" ;;
+*)
+	if [ $VCR_DEBUG -gt 1 ]; then
+		exec /bin/sh -x $LIBEXEC/$COMMAND "$@"
+	else
+		exec $LIBEXEC/$COMMAND "$@"
+	fi
+esac
+
+# NOTREACHED
+
+################################################################################
+# END
+################################################################################

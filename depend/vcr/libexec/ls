@@ -1,0 +1,240 @@
+#!/bin/sh
+############################################################ IDENT(1)
+#
+# $Title: Script to list R libraries $
+# $Copyright: 2019 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/vcr/libexec/ls 2019-07-12 14:05:39 -0700 freebsdfrau $
+#
+############################################################ CONFIGURATION
+
+#
+# Default separator
+#
+DEFAULT_SEP="=="
+
+############################################################ ENVIRONMENT
+
+#
+# Inherited from vcr
+#
+: ${VCR_PROGRAM:=vcr}
+
+############################################################ GLOBALS
+
+#
+# Program basename
+#
+case "$( uname -s )" in
+Linux)
+	pgm=$( readlink -f "$0" )
+	pgm="${pgm##*/}"
+	;;
+*)
+	pgm="${0##*/}"
+esac
+
+#
+# Global exit status
+#
+SUCCESS=0
+FAILURE=1
+
+#
+# Command-line options
+#
+QUIET=			# -q
+SORT=			# -s
+SEP="$DEFAULT_SEP"	# -t sep
+
+############################################################ I18N
+
+case "${LANG:-$LC_ALL}" in
+de|de_DE|de_DE.*) # German
+fmt_no_description_files_found_in="Keine DESCRIPTION-Dateien gefunden in %s"
+msg_default_is="Standard ist"
+msg_options="Optionen"
+msg_quiet_hide_errors="Ruhig. Fehler ausblenden, wenn bibliothek fehlt."
+msg_separator="Separator"
+msg_sort_alphabetically="Alphabetisch statt chronologisch sortieren."
+msg_usage="Verwendungszweck"
+;;
+he|he_IL|he_IL.*) # Hebrew
+fmt_no_description_files_found_in="%s לא נמצאו קובצי DESCRIPTION"
+msg_default_is="ברירת המחדל היא"
+msg_options="אפשרויות"
+msg_quiet_hide_errors="שקט. הסתר שגיאות אם הספריה אינה קיימת."
+msg_separator="מפריד."
+msg_sort_alphabetically="מיון לפי סדר אלפביתי במקום כרונולוגי."
+msg_usage="שימוש"
+;;
+pl|pl_PL|pl_PL.*) # Polish
+fmt_no_description_files_found_in="Nie znaleziono plików OPIS w %s"
+msg_default_is="Domyślnie"
+msg_options="Opcje"
+msg_quiet_hide_errors="Cichy. Ukryj błędy, jeśli biblioteka nie istnieje."
+msg_separator="Separator."
+msg_sort_alphabetically="Sortuj alfabetycznie zamiast chronologicznie."
+msg_usage="Stosowanie"
+;;
+ru_RU.UTF8) # Russian (Cyrillic)
+fmt_no_description_files_found_in="Файлы DESCRIPTION не найдены в %s"
+msg_default_is="По умолчанию"
+msg_options="Опции"
+msg_quiet_hide_errors="Тихо. Скрыть ошибки, если библиотека не существует."
+msg_separator="Разделитель."
+msg_sort_alphabetically="Сортировать по алфавиту, а не по хронологии."
+msg_usage="Использование"
+;;
+ru|ru_RU|ru_RU.*) # Russian (Latin)
+fmt_no_description_files_found_in="Fayly DESCRIPTION ne naydeny v %s"
+msg_default_is="Po umolchaniyu"
+msg_options="Optsii"
+msg_quiet_hide_errors="Tikho. Skryt' oshibki, yesli biblioteka ne sushchestvuyet."
+msg_separator="Razdelitel'."
+msg_sort_alphabetically="Sortirovat' po alfavitu, a ne po khronologii."
+msg_usage="Ispol'zovaniye"
+;;
+zh_CN.UTF8) # Chinese (Simplified)
+fmt_no_description_files_found_in="找不到DESCRIPTION文件 %s"
+msg_default_is="默认是"
+msg_options="Xuǎnxiàng"
+msg_quiet_hide_errors="安静。 如果库不存在，则隐藏错误。"
+msg_separator="分隔器。"
+msg_sort_alphabetically="按字母顺序排序而不是按时间顺序排序。"
+msg_usage="用法"
+;;
+zh|zh_CN|zh_CN.*) # Chinese (Latin)
+fmt_no_description_files_found_in="Zhǎo bù dào xDESCRIPTION wénjiàn %s"
+msg_default_is="Mòrèn shì"
+msg_options="Xuǎnxiàng"
+msg_quiet_hide_errors="Ānjìng. Rúguǒ kù bù cúnzài, zé yǐncáng cuòwù."
+msg_separator="Fēngé qì."
+msg_sort_alphabetically="Àn zìmǔ shùnxù páixù ér bùshì àn shíjiān shùnxù páixù."
+msg_usage="Yòngfǎ"
+;;
+*) # English
+fmt_no_description_files_found_in="No DESCRIPTION files found in %s"
+msg_default_is="Default is"
+msg_options="Options"
+msg_quiet_hide_errors="Quiet. Hide errors if library does not exist."
+msg_separator="Separator."
+msg_sort_alphabetically="Sort alphabetically instead of chronologically."
+msg_usage="Usage"
+esac
+
+############################################################ FUNCTIONS
+
+die()
+{
+	local fmt="$1"
+	if [ "$fmt" ]; then
+		shift 1 # fmt
+		printf "%s: %s: $fmt\n" "$VCR_PROGRAM" "$pgm" "$@"
+	fi
+	exit $FAILURE
+}
+
+usage()
+{
+	local optfmt="\t%-9s %s\n"
+	exec >&2
+	printf "Usage: %s %s [-qs] [-t sep] [path]\n" "$VCR_PROGRAM" "$pgm"
+	printf "Options:\n"
+	printf "$optfmt" "-q" "$msg_quiet_hide_errors"
+	printf "$optfmt" "-s" "$msg_sort_alphabetically"
+	printf "$optfmt" "-t sep" \
+		"$msg_separator $msg_default_is \`$DEFAULT_SEP'."
+	die
+}
+
+exists()
+{
+	[ -e "$1" ]
+}
+
+list()
+{
+	local awk_code
+
+	awk_code='
+	function exists(path) {
+		return system(sprintf("[ -e \"%s\" ]", path)) == 0
+	}
+	/^Version:/ {
+		vers = $NF
+		path = name = FILENAME
+		sub("/[^/]+$", "", path)
+		furl = path "/vcr-url.txt"
+		if (exists(furl)) {
+			getline url < furl
+			close(furl)
+			print "-u", url
+		} else {
+			sub("/[^/]*$", "", name)
+			gsub(".*/", "", name)
+			print name sep vers
+		}
+		nextfile
+	}
+	' # END-QUOTE
+
+	if [ "$SORT" ]; then
+		awk -v sep="$SEP" "$awk_code" "$@" | sort
+	else
+		awk -v sep="$SEP" "$awk_code" "$@"
+	fi
+}
+
+############################################################ MAIN
+
+#
+# Command-line options
+#
+while getopts hqst: flag; do
+	case "$flag" in
+	q) QUIET=1 ;;
+	s) SORT=1 ;;
+	t) SEP="$OPTARG" ;;
+	*) usage # NOTREACHED
+	esac
+done
+shift $(( $OPTIND - 1 ))
+
+#
+# Check command-line arguments
+#
+if [ $# -gt 1 ]; then
+	usage
+	# NOTREACHED
+fi
+
+#
+# Print library versions
+#
+if [ $# -eq 1 ]; then
+	if exists "$1"/*/DESCRIPTION; then
+		list $( ls -tr "$1"/*/DESCRIPTION )
+	elif exists "$1"/lib64/R/library/*/DESCRIPTION; then
+		list $( ls -tr "$1"/lib64/R/library/*/DESCRIPTION )
+	elif exists "$1"/library/*/DESCRIPTION; then
+		list $( ls -tr "$1"/library/*/DESCRIPTION )
+	else
+		[ "$QUIET" ] || die "$fmt_no_description_files_found_in" "$1"
+	fi
+else
+	if exists */DESCRIPTION; then
+		list $( ls -tr */DESCRIPTION )
+	elif exists */lib64/R/library/*/DESCRIPTION; then
+		list $( ls -tr */lib64/R/library/*/DESCRIPTION )
+	elif exists library/*/DESCRIPTION; then
+		list $( ls -tr library/*/DESCRIPTION )
+	else
+		[ "$QUIET" ] || die "$fmt_no_description_files_found_in" CWD
+	fi
+fi
+
+exit $SUCCESS
+
+################################################################################
+# END
+################################################################################
