@@ -1,0 +1,41 @@
+# vi: set ft=sh :: Vi/ViM
+#-
+############################################################ IDENT(1)
+#
+# $Title: Configuration file for CRAN packaging $
+# $Copyright: 2019 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/vcran/etc/vcran_conf.tmpl 2019-07-12 16:22:23 -0700 freebsdfrau $
+#
+############################################################ CONFIGURATION
+
+#
+# Where to install packages to within `install' dir
+#
+DESTDIR=/opt/R/@R_VERS@/lib64/R/library.@REPONAME@
+
+#
+# Path to R
+#
+R_HOME_DIR=/opt/R/@R_VERS@/lib64/R
+
+############################################################ PACKAGES
+
+#
+# Requested packages
+#
+# NB: Order matters for dependency calculations during install
+# NB: Comments allowed (both inline and leading)
+#
+# Source URL: https://cran.r-project.org/web/packages/%/index.html
+#
+PACKAGES="
+	#
+	# Requested specifically
+	#
+	# PACKAGE		VERSION (or 'latest')
+	@R_REQS@
+" # END-QUOTE
+
+################################################################################
+# END
+################################################################################
