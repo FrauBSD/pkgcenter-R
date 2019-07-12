@@ -1,0 +1,416 @@
+#!/bin/sh
+############################################################ IDENT(1)
+#
+# $Title: R interpreter capable of bootstrapping custom environments $
+# $Copyright: 2019 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/Renv/Renv 2019-07-12 14:02:48 -0700 freebsdfrau $
+#
+############################################################ CONFIGURATION
+
+#
+# Default R interpreter
+#
+DEFAULT_R=R
+
+#
+# Default library to include in .libPaths if it exists
+#
+DEFAULT_LIBRARY=library
+
+#
+# Default profile to source if it exists
+#
+DEFAULT_PROFILE=.Renv
+
+############################################################ ENVIRONMENT
+
+#
+# Debugging
+#
+: ${RENV_DEBUG:=}
+
+#
+# Directory for temporary files
+#
+: ${RENV_TMPDIR:=/tmp}
+
+############################################################ GLOBALS
+
+VERSION='$Version: 5.1 $'
+
+pgm="${0##*/}" # Program basename
+
+#
+# Global exit status
+#
+SUCCESS=0
+FAILURE=1
+
+#
+# Interpreter
+#
+I="$*"
+R="$DEFAULT_R"
+RFILE=
+RFILEDIR=
+RLIBRARY=
+
+#
+# Interpreter options
+#
+NLIBPATHS=0	# -l dir
+RPROFILE=	# -p file
+
+#
+# Miscellaneous
+#
+EXPR=
+IARGS=
+RARGS=
+RBIN=
+R_INHERITED=
+TMPENV=
+
+############################################################ I18N
+
+msg_arg_detected="arg detected"
+msg_arg_parsed="arg parsed"
+msg_args_detected="args detected"
+msg_args_parsed="args parsed"
+msg_bad_or_missing_interpreter="Bad or missing interpreter"
+msg_debug="DEBUG"
+msg_enable_debug="Enable debug. Use multiple times for extra debugging."
+msg_extra_debugging_enabled="Extra debugging enabled"
+msg_found="Found"
+msg_inherited="Inherited"
+msg_missing="Missing"
+msg_no_such_file_or_directory="No such file or directory"
+msg_not_a_directory="Not a directory"
+msg_options="Options"
+msg_print_usage_statement_to_stderr_and_exit="Print usage statement to stderr and exit."
+msg_print_version_to_stderr_and_exit="Print version to stderr and exit."
+msg_source_file_instead_of="Source file instead of"
+msg_usage="Usage"
+msg_use_dir_instead_of="Use dir instead of"
+msg_warning="WARNING"
+
+############################################################ FUNCTIONS
+
+have(){ type "$@" > /dev/null 2>&1; }
+
+die()
+{
+	local fmt="$1"
+	if [ "$fmt" ]; then
+		shift 1 # fmt
+		printf "%s: $fmt\n" "$pgm" "$@" >&2
+	fi
+	exit $FAILURE
+}
+
+usage()
+{
+	local optfmt="\t%-10s %s\n"
+	exec >&2
+	printf "$msg_usage: %s [-Dhv] [-l dir] [-p file] [--] " "$pgm"
+	if [ "$R_INHERITED" ]; then
+		printf "[file [args]]\n"
+	else
+		printf "[R | Rscript] [file [args]]\n"
+	fi
+	printf "$msg_options:\n"
+	printf "$optfmt" "-D" "$msg_enable_debug"
+	printf "$optfmt" "-h" "$msg_print_usage_statement_to_stderr_and_exit"
+	printf "$optfmt" "-l dir" \
+	    "$msg_use_dir_instead_of \`$DEFAULT_LIBRARY'."
+	printf "$optfmt" "-p file" \
+	    "$msg_source_file_instead_of \`$DEFAULT_PROFILE'."
+	printf "$optfmt" "-v" "$msg_print_version_to_stderr_and_exit"
+	die
+}
+
+version()
+{
+	local v="${VERSION#*: }"
+	printf "%s\n" "${v% $}" >&2
+	die
+}
+
+debug()
+{
+	[ "$RENV_DEBUG" ] || return
+	local fmt="$1"
+	shift 1 # fmt
+	if [ -t 1 ]; then # stdout is a tty
+		printf "\e[35;1m$msg_debug\e[m %s: $fmt\n" "$pgm" "$@" >&2
+	else
+		printf "$msg_debug %s: $fmt\n" "$pgm" "$@" >&2
+	fi
+}
+
+warn()
+{
+	local fmt="$1"
+	shift 1 # fmt
+	if [ -t 1 ]; then # stdout is a tty
+		printf "\e[33;1m$msg_warning!\e[m %s: $fmt\n" "$pgm" "$@" >&2
+	else
+		printf "$msg_warning! %s: $fmt\n" "$pgm" "$@" >&2
+	fi
+}
+
+if have realpath; then
+	: good
+elif have readlink; then
+	realpath(){ readlink -f "$@"; }
+elif have perl; then
+	realpath(){ perl -le 'use Cwd; print Cwd::abs_path(@ARGV);' -- "$@"; }
+else
+	realpath(){ echo "$@"; }
+fi
+
+############################################################ MAIN
+
+#
+# Change behavior based on interpreter invocation name
+#
+if [ $# -eq 1 ]; then
+	debug "1 $msg_arg_detected"
+else
+	debug "%u $msg_args_detected" $#
+fi
+n=1
+while [ $n -le $# ]; do
+	eval "debug 'arg$n=[%s]' \"\${$n}\""
+	n=$(( $n + 1 ))
+done
+case "$pgm" in
+*-*) # Use R based on our name
+	R="R-${pgm#*-}"
+	R_INHERITED=1
+	debug "$msg_inherited R=[%s]" "$R"
+	;;
+esac
+
+#
+# Process arguments until we get to script args
+#
+set -- $*
+if [ $# -eq 1 ]; then
+	debug "1 $msg_arg_parsed"
+else
+	debug "%u $msg_args_parsed" $#
+fi
+while [ $# -ge 1 ]; do
+	case "$1" in
+	--) # option terminator
+		debug "arg=[$1]"
+		shift 1 # --
+		if [ "$R_INHERITED" ]; then
+			# next is R script to interpret
+			RFILE="$1"
+			shift 1 # RFILE
+		else
+			# next is R interpreter
+			R="$1"
+			shift 1 # R
+			# Followed by script to interpret?
+			if [ $# -ge 1 ]; then
+				RFILE="$1"
+				shift 1 # RFILE
+			fi
+		fi
+		break
+		;;
+	-[lp]) # interpreter option in need of argument
+		debug "arg=[$1${2:+ $2}]"
+		IARGS="$IARGS${IARGS:+ }$1"
+		shift 1 # optflag
+		if [ $# -ge 1 ]; then
+			IARGS="$IARGS $1"
+			shift 1 # optarg
+		fi
+		;;
+	-*) # interpreter option (such as -h or -l/tmp/foobar)
+		debug "arg=[$1]"
+		IARGS="$IARGS${IARGS:+ }$1"
+		shift 1 # opt
+		;;
+	*) # interp or interp + script
+		debug "arg=[$1]"
+		if [ "$R_INHERITED" ]; then
+			# next is R script to interpret
+			RFILE="$1"
+			shift 1 # RFILE
+		else
+			# next is R interpreter
+			R="$1"
+			shift 1 # R
+			# Followed by script to interpret?
+			if [ $# -ge 1 ]; then
+				RFILE="$1"
+				shift 1 # RFILE
+			fi
+		fi
+		break
+	esac
+done
+debug "IARGS=[%s]" "$IARGS"
+
+#
+# Process remainder as script arguments
+#
+n=1
+while [ $n -le $# ]; do
+	eval arg=\"\$$n\"
+	eval arg$n=\"\$arg\"
+	debug "arg%u=[%s]" $n "$arg"
+	RARGS="$RARGS \"\$arg$n\""
+	n=$(( $n + 1 ))
+done
+
+#
+# Parse interpreter options
+#
+set -- $IARGS
+while getopts Dhl:p:v flag; do
+	case "$flag" in
+	D) RENV_DEBUG=$(( ${RENV_DEBUG:-0} + 1 )) ;;
+	l) NLIBPATHS=$(( $NLIBPATHS + 1 ))
+	   eval LIBPATH$NLIBPATHS=\"\$OPTARG\" ;;
+	p) RPROFILE=$( realpath "$RFILEDIR$OPTARG" ) ;;
+	v) version ;; # NOTREACHED
+	*) usage # NOTREACHED
+	esac
+done
+shift $(( $OPTIND - 1 ))
+
+#
+# Get default R library path
+#
+debug "R=[%s]" "$R"
+set -- $R
+RBIN="${1##*/}"
+case "$RBIN" in
+Rscript|Rscript-*) RLIBRARY=$( echo 'cat(.libPaths(.Library))' | $R - ) ;;
+*) RLIBRARY=$( $R --slave --no-restore -e 'cat(.libPaths(.Library))' )
+esac 2> /dev/null || warn "%s: $msg_bad_or_missing_interpreter" "$1"
+debug "RLIBRARY=[%s]" "$RLIBRARY"
+
+#
+# Find virtual environment libraries
+#
+debug "RFILE=[%s]" "$RFILE"
+case "$RFILE" in
+*/*) RFILEDIR="${RFILE%/*}/" ;;
+esac
+debug "RFILEDIR=[%s]" "$RFILEDIR"
+n=1
+while [ $n -le $NLIBPATHS ]; do
+	found=
+	lproj=
+	eval libpath=\"\$LIBPATH$n\"
+	# If relative path not matching library or */library
+	# check for path basename in RLIBRARY parent directory
+	[ "${libpath#/}" = "$libpath" -a \
+	  "${libpath##*/}" != "library" ] && lproj=1
+	# If absolute path, do not prepend file dirname
+	case "$libpath" in
+	/*) rfiledir= ;;
+	*) rfiledir="$RFILEDIR"
+	esac
+	for dir in \
+		"$rfiledir$libpath" \
+		${lproj:+"${RLIBRARY%/*}/${libpath##*/}"} \
+	; do
+		rdir=$( realpath "$dir" 2> /dev/null ) || continue
+		dir="$rdir"
+		if [ ! -e "$dir" ]; then
+			debug "$msg_missing %s" "$dir"
+			continue
+		fi
+		[ -d "$dir" ] || die "%s: $msg_not_a_directory" "$dir"
+		debug "$msg_found %s" "$dir"
+		found=1
+		LIBPATHS="$LIBPATHS, \"$dir\""
+	done
+	[ "$found" ] ||
+		die "%s: $msg_no_such_file_or_directory" "$dir"
+	n=$(( $n + 1 ))
+done
+
+#
+# Default project library when `-l dir' not given
+#
+if [ ! "$LIBPATHS" ]; then
+	dir="$RFILEDIR$DEFAULT_LIBRARY"
+	if [ -d "$dir" ]; then
+		debug "$msg_found %s" "$dir"
+		LIBPATHS="$LIBPATHS, \"$dir\""
+	elif [ -e "$dir" ]; then
+		die "%s: $msg_not_a_directory" "$dir"
+	else
+		debug "$msg_missing %s" "$dir"
+	fi
+fi
+LIBPATHS="${LIBPATHS#, }"
+
+#
+# Set command-line arguments
+#
+eval set -- $RARGS
+debug "RARGS=[%s]" "$*"
+
+#
+# Extra debugging
+#
+case "$RENV_DEBUG" in
+""|*[!0-9]*) : skip ;;
+*)
+	if [ $RENV_DEBUG -ge 2 ]; then
+		debug "$msg_extra_debugging_enabled"
+		set -x
+	fi
+esac
+
+#
+# Generate custom R environment
+#
+[ ! "$LIBPATHS" ] || EXPR="$EXPR; .libPaths(c($LIBPATHS, .libPaths()))"
+if [ "$RPROFILE" ]; then
+	EXPR="$EXPR; Renv.profile.path <- c(\"$RPROFILE\")"
+	EXPR="$EXPR; Renv.profile.name <- c(\"${RPROFILE##*/}\")"
+	EXPR="$EXPR; source(Renv.profile.path)"
+elif [ -e "$RFILEDIR$DEFAULT_PROFILE" ]; then
+	EXPR="$EXPR; Renv.profile.path <- c(\"$RFILEDIR$DEFAULT_PROFILE\")"
+	EXPR="$EXPR; Renv.profile.name <- c(\"${DEFAULT_PROFILE##*/}\")"
+	EXPR="$EXPR; source(Renv.profile.path)"
+fi
+EXPR="$EXPR; Renv.file.path <- c(\"$RFILE\")"
+EXPR="$EXPR; Renv.file.name <- c(\"${RFILE##*/}\")"
+[ ! "$RFILE" ] || EXPR="$EXPR; source(Renv.file.path)"
+EXPR="${EXPR#; }"
+
+#
+# Invoke desired R interpreter to run custom environment
+#
+if [ "$RFILE" ]; then
+	case "$RBIN" in
+	Rscript|Rscript-*) exec $R -e "$EXPR" "$@" ;;
+	*) exec $R --slave --no-restore -e "$EXPR" ${*:+--args "$@"}
+	esac
+else
+	TMPENV=$( mktemp "$RENV_TMPDIR/$pgm.XXXXXXXX" ) || die
+	echo "$EXPR" > "$TMPENV" || die
+	trap 'rm -f "$TMPENV"' EXIT
+	case "$RBIN" in
+	Rscript|Rscript-*) R_PROFILE_USER="$TMPENV" exec $R "$@" ;;
+	*) R_PROFILE_USER="$TMPENV" exec $R --interactive ${*:+--args "$@"}
+	esac
+fi
+
+# NOTREACHED
+
+################################################################################
+# END
+################################################################################
