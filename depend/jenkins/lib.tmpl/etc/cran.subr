@@ -1,0 +1,198 @@
+# vi: set ft=sh :: Vi/ViM
+#-
+############################################################ IDENT(1)
+#
+# $Title: Subroutines for handling CRAN package sources $
+# $Copyright: 2019 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/jenkins/lib.tmpl/etc/cran.subr 2019-07-12 16:36:35 -0700 freebsdfrau $
+#
+############################################################ CONFIGURATION
+
+#
+# Enable extra debugging on stdout
+#
+: ${DEBUG=}
+
+#
+# Where to install packages
+#
+CRAN_INSTALLDIR="install"
+
+#
+# Where to store temporary files
+#
+CRAN_TMPDIR="tmp"
+
+############################################################ GLOBALS
+
+pgm="${0##*/}" # Program basename
+cwd=$( pwd ) # Current working directory
+
+#
+# Global exit status
+#
+SUCCESS=0
+FAILURE=1
+
+#
+# OS Glue
+#
+case "$( cat /etc/redhat-release )" in
+*" 6."*) LINUX="rhel6" ;;
+*" 7."*) LINUX="rhel7" ;;
+*)
+	echo "Unknown RedHat/CentOS Linux release" >&2
+	exit $FAILURE
+esac
+case "$( uname -m )" in
+x86_64) LINUX="$LINUX-x86_64" ;;
+*)
+	echo "Unknown machine architecture" >&2
+	exit $FAILURE
+esac
+
+#
+# R environment
+#
+_R=
+
+#
+# Literals
+#
+NL="
+" # END-QUOTE
+
+############################################################ FUNCTIONS
+
+have(){ type "$@" > /dev/null 2>&1; }
+matches(){ awk -v line="$1" '$0==line{exit ++found}END{exit !found}'; }
+
+if [ -t 1 ]; then # stdout is a tty
+step(){ printf "\e[32;1m==>\e[39m %s\e[m\n" "$*"; }
+warn(){ printf "\e[33;1mACHTUNG!\e[m %s\n" "$*" >&2; }
+
+die()
+{
+	local fmt="$1"
+	if [ "$fmt" ]; then
+		shift 1 # fmt
+		printf "\e[1;31mFATAL!\e[m $fmt\n" "$@" >&2
+	fi
+	exit $FAILURE
+}
+
+eval2()
+{
+	printf "\e[2m%s\e[m\n" "$*" >&3
+	eval "$@"
+}
+else
+step(){ printf "==> %s\n" "$*"; }
+warn(){ printf "ACHTUNG! %s\n" "$*" >&2; }
+
+die()
+{
+	local fmt="$1"
+	if [ "$fmt" ]; then
+		shift 1 # fmt
+		printf "FATAL! $fmt\n" "$@" >&2
+	fi
+	exit $FAILURE
+}
+
+eval2()
+{
+	printf "%s\n" "$*" >&3
+	eval "$@"
+}
+fi
+
+if have readlink; then
+realpath(){ readlink -f "$@"; }
+elif have realpath; then
+realpath(){ command realpath "$@"; }
+elif have perl; then
+realpath(){ perl -le 'use Cwd; print Cwd::abs_path(@ARGV);' -- "$@"; }
+fi
+
+conf_read()
+{
+	local config="$1"
+
+	# Source configuration file
+	. "$config" || die "Unable to read %s" "$config"
+
+	# Path to package source tarball
+	PACKAGE="${ARCHIVE%/}/$PKGNAME$PKGVERS$PKGSUFF"
+
+	# If above is a URL (e.g., ftp, http, https, etc.) ...
+	case "$PACKAGE" in
+	???://*|????://*|?????://*)
+		PACKAGEFILE="${CRAN_TMPDIR%/}/${PACKAGE##*/}" ;;
+	*)
+		PACKAGEFILE="$PACKAGE"
+	esac
+	PACKAGEFILENAME="${PACKAGEFILE##*/}"
+}
+
+serialize_args()
+{
+	while [ $# -gt 0 ]; do
+		printf "nextArg%s" "$1"
+		shift 1
+	done
+}
+
+renv_create()
+{
+	[ "$R_HOME_DIR" ] || die "R_HOME_DIR is NULL or unset"
+	[ -e "$R_HOME_DIR" ] || die "$R_HOME_DIR: No such file or directory"
+	[ -d "$R_HOME_DIR/" ] || die "$R_HOME_DIR: Not a directory"
+
+	mkdir -p "$cwd/renv/bin" || die
+	touch "$cwd/renv/bin/R" || die
+
+	local path
+	for path in "$( realpath "$R_HOME_DIR" )"/*; do
+		case "$path" in
+		*/bin) continue ;;
+		esac
+		ln -nsf "$path" "$cwd/renv/"
+	done
+	for path in "$( realpath "$R_HOME_DIR/bin" )"/*; do
+		case "$path" in
+		*/R) continue ;;
+		esac
+		ln -nsf "$path" "$cwd/renv/bin/"
+	done
+
+	sed -e "
+		s:^\\(R_HOME_DIR=\\).*:\\1\"$cwd/renv\":
+		s:^\\(R_SHARE_DIR=\\).*:\\1\"\$R_HOME/share\":
+		s:^\\(R_INCLUDE_DIR=\\).*:\\1\"\$R_HOME/include\":
+		s:^\\(R_DOC_DIR=\\).*:\\1\"\$R_HOME/doc\":
+	" "$R_HOME_DIR/bin/R" > "$cwd/renv/bin/R" ||
+		die "Unable to read bin/R in R_HOME_DIR"
+	chmod +x "$cwd/renv/bin/R" ||
+		die "Unable to make renv/bin/R executable"
+}
+
+renv_destroy()
+{
+	rm -Rf "$cwd/renv"
+}
+
+R()
+{
+	[ -e "$cwd/renv/bin/R" ] || renv_create ||
+		die "Unable to create virtual R environment (renv)"
+	"$cwd/renv/bin/R" --slave --no-restore "$@"
+}
+
+############################################################ MAIN
+
+exec 3<&1
+
+################################################################################
+# END
+################################################################################

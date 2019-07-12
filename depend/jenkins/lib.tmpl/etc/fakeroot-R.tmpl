@@ -1,0 +1,22 @@
+# vi: set ft=sh :: Vi/ViM
+#-
+############################################################ IDENT(1)
+#
+# $Title: Configuration file for packaging $
+# $Copyright: 2019 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/jenkins/lib.tmpl/etc/fakeroot-R.tmpl 2019-07-12 16:36:35 -0700 freebsdfrau $
+#
+############################################################ INCLUDES
+
+. ./etc/R-@R_VERS@-@LINUX@.conf || die "Unable to source parent config"
+
+############################################################ CONFIGURATION
+
+#
+# Path to R
+#
+R_HOME_DIR=~/fakeroot/$R_HOME_DIR
+
+################################################################################
+# END
+################################################################################

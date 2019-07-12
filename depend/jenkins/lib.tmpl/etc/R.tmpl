@@ -1,0 +1,35 @@
+# vi: set ft=sh :: Vi/ViM
+#-
+############################################################ IDENT(1)
+#
+# $Title: Configuration file for packaging $
+# $Copyright: 2019 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/jenkins/lib.tmpl/etc/R.tmpl 2019-07-12 16:36:35 -0700 freebsdfrau $
+#
+############################################################ CONFIGURATION
+
+#
+# Path to package
+#
+ARCHIVE=@ARCHIVE@
+PKGNAME=@PKGNAME@
+PKGSUFF=@PKGSUFF@
+
+#
+# Package version
+#
+PKGVERS=@PKGVERS@
+
+#
+# Where to install packages to within `install' dir
+#
+DESTDIR=/opt/R/@R_VERS@/lib64/R/library.@REPONAME@
+
+#
+# Path to R
+#
+R_HOME_DIR=/opt/R/@R_VERS@/lib64/R
+
+################################################################################
+# END
+################################################################################
