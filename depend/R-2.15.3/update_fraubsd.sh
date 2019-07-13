@@ -1,10 +1,9 @@
 #!/bin/sh
-#-
 ############################################################ IDENT(1)
 #
 # $Title: Script to update R $
 # $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/R-2.15.3/update_fraubsd.sh 2019-07-12 22:37:51 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/R-2.15.3/update_fraubsd.sh 2019-07-12 22:49:23 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
