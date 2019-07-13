@@ -3,7 +3,7 @@
 #
 # $Title: Script to clean R $
 # $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/R-2.15.3/clean_fraubsd.sh 2019-07-12 22:37:51 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/R-2.15.3/clean_fraubsd.sh 2019-07-12 23:14:17 -0700 freebsdfrau $
 #
 ############################################################ GLOBALS
 
@@ -117,7 +117,7 @@ done
 git checkout NEWS 2> /dev/null || : errors ignored
 git checkout NEWS.pdf 2> /dev/null || : errors ignored
 
-[ -e .keep_stage ] && exit
+[ ! -e .keep_stage ] || exit 0
 for item in \
 	COPYING \
 	ChangeLog \
