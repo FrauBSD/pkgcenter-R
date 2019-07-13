@@ -3,7 +3,7 @@
 #
 # $Title: Script to update R $
 # $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/R-3.1.1/update_fraubsd.sh 2019-07-12 22:49:23 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/R-3.1.1/update_fraubsd.sh 2019-07-12 23:04:45 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -23,6 +23,8 @@ ANSI_FGC_OFF="$ESC[39m"
 
 ############################################################ FUNCTIONS
 
+have(){ type "$@" > /dev/null 2>&1; }
+
 exec 3>&1
 eval2()
 {
@@ -31,11 +33,11 @@ eval2()
 }
 
 if have fetch; then
-http_get(){ eval2 fetch -qo- "$@"; }
+http_get(){ eval2 fetch -o- "$@"; }
 elif have wget; then
-http_get(){ eval2 wget -qO- "$@"; }
+http_get(){ eval2 wget -O- "$@"; }
 else
-http_get(){ eval2 curl -sLo- "$@"; }
+http_get(){ eval2 curl -Lo- "$@"; }
 fi
 
 ############################################################ MAIN
@@ -74,7 +76,13 @@ done
 thisdir=$( pwd )
 eval2 cd ..
 mkdir R-tmp.$$
-http_get "$REPO/R-$RELEASE.tar.gz" | tar zxvf - -C R-tmp.$$ > /dev/null
+download="R-$RELEASE-$$.tar.gz"
+if [ -e "$download" ]; then
+	echo "$download: File already exists" >&2
+	exit 1
+fi
+http_get "${REPO%/}/R-$RELEASE.tar.gz" > "$download"
+tar zxvf "$download" -C R-tmp.$$ > /dev/null
 eval2 rsync -crlDvH --delete  \
 	--exclude=\".git/\*\"			\
 	--exclude=\".git\"			\
@@ -91,8 +99,8 @@ eval2 rsync -crlDvH --delete  \
 	--exclude=\"\*/.gitignore\"		\
 	--exclude=\"\*/.gitmodules\"		\
 	--exclude=\"\*fraubsd.sh\"		\
-	R-tmp.$$/R-$RELEASE/ $thisdir/
-eval2 rm -Rf R-tmp.$$
+	"R-tmp.$$/R-$RELEASE/" "$thisdir/"
+eval2 rm -Rf R-tmp.$$ "$download"
 
 ################################################################################
 # END
