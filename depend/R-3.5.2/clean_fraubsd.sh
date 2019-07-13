@@ -3,7 +3,7 @@
 #
 # $Title: Script to clean R $
 # $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/R-3.5.2/clean_fraubsd.sh 2019-07-12 23:16:50 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/R-3.5.2/clean_fraubsd.sh 2019-07-12 23:23:09 -0700 freebsdfrau $
 #
 ############################################################ GLOBALS
 
@@ -132,7 +132,7 @@ for item in \
 	VERSION \
 	VERSION-NICK \
 	config.site \
-	configure* \
+	configure \
 	configure.ac \
 	doc/ \
 	etc/ \
