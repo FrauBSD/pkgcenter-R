@@ -1,0 +1,79 @@
+#!/bin/sh
+# -*- tab-width: 4 -*- ;; Emacs
+# vi: set noexpandtab  :: Vi/ViM
+############################################################ IDENT(1)
+#
+# $Title: Script for re-populating the package staging files from RPM $
+# $Copyright: 2019 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/redhat/Mk/rpmrestage 2019-11-20 00:10:45 -0800 freebsdfrau $
+#
+############################################################ INFORMATION
+#
+# Usage: rpmrestage
+#
+############################################################ GLOBALS
+
+#
+# Global exit status
+#
+SUCCESS=0
+FAILURE=1
+
+#
+# OS Glue
+#
+: ${UNAME_s:=$( uname -s )}
+
+#
+# Utility pathnames
+#
+: ${AWK:=awk}
+: ${CPIO:=cpio}
+: ${ENV:=env}
+: ${LS:=ls}
+: ${MKDIR:=mkdir}
+: ${RPM2CPIO:=rpm2cpio}
+: ${YUM:=yum}
+: ${YUMDOWNLOADER:=yumdownloader}
+
+#
+# Miscellaneous
+#
+FILE=
+NAME=
+RPMNAME=
+
+############################################################ MAIN
+
+set -e # errexit
+
+#
+# Download the RPM using yumdownloader (from yum-utils)
+#
+RPMNAME=$( $PKGCENTER/redhat/Mk/rpmname "$SPECFILE" )
+if ! $ENV -i $YUMDOWNLOADER -q -C -y "$RPMNAME"; then
+	NAME=$( $AWK 'sub(/^[Nn][Aa][Mm][Ee]:[[:space:]]*/, "")' "$SPECFILE" )
+	RPMNAME=$( $ENV -i $YUM info -q -C "$NAME" | $AWK '
+		$1 == "Name" { name = $NF }
+		$1 == "Version" { vers = $NF }
+		$1 == "Release" { rel = $NF }
+		END { printf "%s-%s-%s\n", name, vers, rel }
+	' )
+	$ENV -i $YUMDOWNLOADER -q -C -y "$RPMNAME"
+fi
+for FILE in $( $LS -tr $RPMNAME*.rpm ); do
+	break
+done
+
+#
+# Unpack the RPM
+#
+$MKDIR -p stage
+no_absolute_filenames=
+[ "$UNAME_s" = Linux ] && no_absolute_filenames=--no-absolute-filenames
+$RPM2CPIO "$FILE" | ( cd stage &&
+	$CPIO -idmu $no_absolute_filenames --no-preserve-owner )
+
+################################################################################
+# END
+################################################################################

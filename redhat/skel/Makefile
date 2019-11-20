@@ -147,6 +147,9 @@ srcfiles:
 stagefiles: stage
 	@$(ENVIRON) $(PKGCENTER)/redhat/Mk/rpmstagefiles
 
+restage:
+	@$(ENVIRON) $(PKGCENTER)/redhat/Mk/rpmrestage
+
 clean:
 	$(RM) -f $(GENERATED_FILES)
 	$(RM) -Rf tmp
