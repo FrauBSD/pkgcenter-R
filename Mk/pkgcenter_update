@@ -1,0 +1,91 @@
+#!/bin/sh
+# -*- tab-width: 4 -*- ;; Emacs
+# vi: set noexpandtab  :: Vi/ViM
+############################################################ IDENT(1)
+#
+# $Title: Script for updating pkgcenter files $
+# $Copyright: 2019 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/Mk/pkgcenter_update 2019-11-19 22:41:11 -0800 freebsdfrau $
+#
+############################################################ INFORMATION
+#
+# Usage: pkgcenter_update -d num -m file
+#
+############################################################ GLOBALS
+
+pgm="${0##*/}" # Program basename
+
+#
+# Global exit status
+#
+SUCCESS=0
+FAILURE=1
+
+#
+# Command-line options
+#
+DEPTH=		# -d num
+MAKEFILE=	# -m file
+
+############################################################ FUNCTIONS
+
+eval2(){ echo "$*"; eval "$@"; }
+
+die()
+{
+	local fmt="$1"
+	if [ "$fmt" ]; then
+		shift 1 # fmt
+		printf "%s: $fmt\n" "$pgm" "$@" >&2
+	fi
+	exit $FAILURE
+}
+
+usage()
+{
+	local optfmt="\t%-10s %s\n"
+	exec >&2
+	printf "Usage: %s [-h] -d num -m file\n" "$pgm"
+	printf "Options:\n"
+	printf "$optfmt" "-d num" "Update files at num directory depth."
+	printf "$optfmt" "-h" "Print usage statement and exit."
+	printf "$optfmt" "-m file" "Update Makefiles to file."
+	die
+}
+
+############################################################ MAIN
+
+#
+# Process command-line options
+#
+while getopts d:hm: flag; do
+	case "$flag" in
+	d) DEPTH="$OPTARG" ;;
+	m) MAKEFILE="$OPTARG" ;;
+	*) usage # NOTREACHED
+	esac
+done
+shift $(( $OPTIND - 1 ))
+
+#
+# Validate command-line options
+#
+case "$DEPTH" in
+"") die "Must specify depth with \`-d num'" ;;
+*[!0-9]*) die "Invalid -d argument \`%s'" "$DEPTH" ;;
+esac
+case "$MAKEFILE" in
+"") die "Must specify Makefile src with \`-m file'" ;;
+esac
+[ -e "$MAKEFILE" ] || die "%s: No such file or directory" "$MAKEFILE"
+
+#
+# Update Makefiles
+#
+for file in $( find . -mindepth $DEPTH -maxdepth $DEPTH -name Makefile ); do
+	eval2 cp $MAKEFILE $file
+done
+
+################################################################################
+# END
+################################################################################

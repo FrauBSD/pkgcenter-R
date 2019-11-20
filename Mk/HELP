@@ -10,6 +10,7 @@ Global Maintenance Targets:
    distclean_all           Perform `make distclean' for all packages
    pull_all                Perform `make pull' for all packages
    commit_all              Perform `make commit' for all packages
+   update_all              Update package Makefiles from skel
 Git Maintenance Targets:
    pull                    An alias to `git pull'
    tag_all                 Perform `make tag' for all packages

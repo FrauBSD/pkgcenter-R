@@ -63,6 +63,15 @@ taglist_freebsd:
 	 done
 
 #
+# Maintenance Targets
+#
+
+.PHONY: update
+
+update:
+	@: update not implemented for FreeBSD
+
+#
 # Git Addition Targets
 #
 
@@ -82,6 +91,6 @@ pull:
 ################################################################################
 #
 # $Copyright: 1999-2017 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/freebsd/Makefile 2019-07-12 13:28:03 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/freebsd/Makefile 2019-11-19 22:41:11 -0800 freebsdfrau $
 #
 ################################################################################

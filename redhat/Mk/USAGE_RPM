@@ -37,6 +37,10 @@ Package Building Targets:
 	    depend, if any dependency source file is missing an error is
 	    generated causing premature termination.
 
+	restage
+	    Re-populates the stage directory by downloading the published
+	    package and unpacking it.
+
 	rpm
 	    Packages up the source directory, producing an RPM archive in the
 	    current working directory named appropriately given the name

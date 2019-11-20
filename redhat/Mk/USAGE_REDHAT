@@ -45,6 +45,10 @@ Global Maintenance Targets:
 	commit_redhat
 	    Performs `make commit' in all package directories.
 
+	update
+	    Updates the Makefile in each package directory with the Makefile
+	    in the skel directory.
+
 Git Maintenance Targets:
 
 	pull

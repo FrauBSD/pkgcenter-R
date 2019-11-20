@@ -62,6 +62,15 @@ pull_redhat commit_redhat tag_redhat forcetag_redhat taglist_redhat:
 	 done
 
 #
+# Maintenance targets
+#
+
+.PHONY: update
+
+update:
+	@$(PKGCENTER)/Mk/pkgcenter_update -d 5 -m skel/Makefile
+
+#
 # Git Addition Targets
 #
 
@@ -81,6 +90,6 @@ pull:
 ################################################################################
 #
 # $Copyright: 1999-2017 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/redhat/Makefile 2019-07-12 13:28:03 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/redhat/Makefile 2019-11-19 22:41:11 -0800 freebsdfrau $
 #
 ################################################################################

@@ -45,6 +45,10 @@ Global Maintenance Targets:
 	commit_all
 	    Performs `make commit' in all package directories.
 
+	update_all
+	    Updates the Makefile in each package directory with the Makefile
+	    in the platform-specific skel directory.
+
 Git Maintenance Targets:
 
 	pull

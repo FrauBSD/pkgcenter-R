@@ -10,6 +10,7 @@ Global Maintenance Targets:
    distclean_redhat        Perform `make distclean' for all packages
    pull_redhat             Perform `make pull' for all packages
    commit_redhat           Perform `make commit' for all packages
+   update                  Update package Makefiles from skel
 Git Maintenance Targets:
    pull                    An alias to `git pull'
    tag_redhat              Perform `make tag' for all packages

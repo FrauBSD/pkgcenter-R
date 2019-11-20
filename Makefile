@@ -7,6 +7,8 @@
 
 PKGCENTER = .
 
+SUBDIRS = freebsd redhat
+
 #
 # Repository Specifics
 #
@@ -61,6 +63,27 @@ pull_all commit_all tag_all forcetag_all:
 	 done
 
 #
+# Maintenance Targets
+#
+
+.PHONY: update_all
+
+update_all:
+	@export CONTINUE=; \
+	 ( set -- $(MFLAGS); \
+	   while getopts k flag; do [ "$$flag" = "k" ] && exit; done; \
+	   false; \
+	 ) && export CONTINUE=1; \
+	 for dir in $(SUBDIRS); do \
+	     [ -d "$$dir" ] || continue; \
+	     target=$(@); target=$${target%_all}; \
+	     echo "--> Making $$target in $$dir"; \
+	     ( cd "$$dir" && \
+	       $(MAKE) $${MAKELEVEL:+--no-print-directory} $(MFLAGS) $$target \
+	     ) || [ "$$CONTINUE" ] || exit 1; \
+	 done
+
+#
 # Git Addition Targets
 #
 
@@ -80,6 +103,6 @@ pull:
 ################################################################################
 #
 # $Copyright: 1999-2017 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/Makefile 2019-07-12 13:28:03 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/Makefile 2019-11-19 22:41:11 -0800 freebsdfrau $
 #
 ################################################################################
