@@ -41,12 +41,12 @@ usage:
 # Recursive Targets
 #
 
-.PHONY: all_freebsd depend_freebsd forcedepend_freebsd
+.PHONY: all_freebsd stage_freebsd forcestage_freebsd
 .PHONY: clean_freebsd distclean_freebsd
 .PHONY: pull_freebsd commit_freebsd
 .PHONY: tag_freebsd forcetag_freebsd taglist_freebsd
 
-all_freebsd depend_freebsd forcedepend_freebsd clean_freebsd \
+all_freebsd stage_freebsd forcestage_freebsd clean_freebsd \
 distclean_freebsd pull_freebsd commit_freebsd tag_freebsd forcetag_freebsd \
 taglist_freebsd:
 	@export CONTINUE=; \
@@ -82,6 +82,6 @@ pull:
 ################################################################################
 #
 # $Copyright: 1999-2017 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/freebsd/RELENG_12_0/Makefile 2019-07-12 13:28:03 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/freebsd/RELENG_12_0/Makefile 2019-11-20 00:09:30 -0800 freebsdfrau $
 #
 ################################################################################

@@ -14,15 +14,15 @@ Global Building Targets:
 	    Performs `make all' in all package directories, attempting to
 	    build each/every package.
 
-	depend_freebsd
-	    Performs `make depend' in all package directories, copying static
-	    file dependencies (if configured) from the `depend' tree into the
-	    given package sub-directory.
+	stage_freebsd
+	    Performs `make stage' in all package directories, copying static
+	    file dependencies (if configured) from the `src' tree into the
+	    given package stage directory.
 
-	forcedepend_freebsd
-	    Performs `make forcedepend' in all package directories, forcing the
-	    copy of file dependencies (if configured) from the `depend' tree
-	    overwriting local copies in the given package sub-directory.
+	forcestage_freebsd
+	    Performs `make forcestage' in all package directories, forcing the
+	    copy of file dependencies (if configured) from the `src' tree
+	    overwriting local copies in the given package stage directory.
 
 Global Maintenance Targets:
 

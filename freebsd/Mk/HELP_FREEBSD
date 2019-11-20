@@ -3,8 +3,8 @@ Generic Targets:
    usage                   Print more detailed information on each target
 Global Building Targets:
    all_freebsd             Build all packages
-   depend_freebsd          Perform `make depend' for all packages
-   forcedepend_freebsd     Perform `make forcedepend' for all packages
+   stage_freebsd           Perform `make stage' for all packages
+   forcestage_freebsd      Perform `make forcestage' for all packages
 Global Maintenance Targets:
    clean_freebsd           Perform `make clean' for all packags
    distclean_freebsd       Perform `make distclean' for all packages

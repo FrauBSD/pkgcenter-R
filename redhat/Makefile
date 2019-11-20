@@ -41,12 +41,12 @@ usage:
 # Recursive Targets
 #
 
-.PHONY: all_redhat depend_redhat forcedepend_redhat
+.PHONY: all_redhat stage_redhat forcestage_redhat
 .PHONY: clean_redhat distclean_redhat
 .PHONY: pull_redhat commit_redhat
 .PHONY: tag_redhat forcetag_redhat taglist_redhat
 
-all_redhat depend_redhat forcedepend_redhat clean_redhat distclean_redhat \
+all_redhat stage_redhat forcestage_redhat clean_redhat distclean_redhat \
 pull_redhat commit_redhat tag_redhat forcetag_redhat taglist_redhat:
 	@export CONTINUE=; \
 	 ( set -- $(MFLAGS); \
@@ -90,6 +90,6 @@ pull:
 ################################################################################
 #
 # $Copyright: 1999-2017 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/redhat/Makefile 2019-11-19 22:41:11 -0800 freebsdfrau $
+# $FrauBSD: pkgcenter-R/redhat/Makefile 2019-11-20 00:09:30 -0800 freebsdfrau $
 #
 ################################################################################

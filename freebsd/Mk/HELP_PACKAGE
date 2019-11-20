@@ -2,11 +2,11 @@ Generic Targets:
    help|targets            Print this text and exit
    usage                   Print more detailed information on each target
 Package Building Targets:
-   noargs|all              A pseudonym for: dirs symlinks depend package
+   noargs|all              A pseudonym for: dirs symlinks stage package
    dirs                    Create pre-configured directories, if any
    symlinks                Create pre-configured symbolic-links, if any
-   depend                  Copy pre-configured file dependencies, if any
-   forcedepend             Like depend, but ignore local modification times
+   stage                   Copy pre-configured file dependencies, if any
+   forcestage              Like stage, but ignore local modification times
    package                 Compile MANIFEST into +MANIFEST and generate archive
 Package Maintenance Targets:
    clean                   Delete generated files, pre-configured symlinks/dirs

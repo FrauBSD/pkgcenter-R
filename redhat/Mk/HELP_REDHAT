@@ -3,8 +3,8 @@ Generic Targets:
    usage                   Print more detailed information on each target
 Global Building Targets:
    all_redhat              Build all packages (works best on Linux)
-   depend_redhat           Perform `make depend' for all packages
-   forcedepend_redhat      Perform `make forcedepend' for all packages
+   stage_redhat            Perform `make stage' for all packages
+   forcestage_redhat       Perform `make forcestage' for all packages
 Global Maintenance Targets:
    clean_redhat            Perform `make clean' for all packags
    distclean_redhat        Perform `make distclean' for all packages

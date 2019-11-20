@@ -2,11 +2,11 @@ Generic Targets:
    help|targets            Print this text and exit
    usage                   Print more detailed information on each target
 RPM Building Targets:
-   noargs|all              A pseudonym for: dirs symlinks depend rpm
+   noargs|all              A pseudonym for: dirs symlinks stage rpm
    dirs                    Create pre-configured directories, if any
    symlinks                Create pre-configured symbolic-links, if any
-   depend                  Copy pre-configured file dependencies, if any
-   forcedepend             Like depend, but ignore local modification times
+   stage                   Copy pre-configured file dependencies, if any
+   forcestage              Like stage, but ignore local modification times
    restage                 Repopulate stage from published package
    rpm                     Use SPECFILE and rpmbuild to produce an RPM archive
 Package Maintenance Targets:

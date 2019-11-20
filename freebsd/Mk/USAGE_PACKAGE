@@ -11,7 +11,7 @@ Package Building Targets:
 
 	all (or no arguments)
 	    A pseudonym for the separate targets (in the order shown): dirs,
-	    symlinks, depend, and package (each described below).
+	    symlinks, stage, and package (each described below).
 
 	dirs
 	    Creates statically configured directories. This feature is used
@@ -23,18 +23,18 @@ Package Building Targets:
 	    most often when a package contains symbolic-links which should not
 	    be committed to CVS. By default, SYMLINKS is not configured.
 
-	depend
+	stage
 	    Copies statically configured file dependencies from source to
 	    destination when the source exists and is newer than the
 	    destination. This feature is used most often when a package
 	    contains files in-common with one or more releases for other
-	    Operating Systems. By default, DEPEND is not configured.
+	    Operating Systems. By default, SRCDIR is not configured.
 
-	forcedepend
-	    Like depend, but forces the copying of all configured file
+	forcestage
+	    Like stage, but forces the copying of all configured file
 	    dependencies. Useful when you want to make sure that your local
 	    tree is up-to-date with the latest external dependencies. Unlike
-	    depend, if any dependency source file is missing an error is
+	    stage, if any dependency source file is missing an error is
 	    generated causing premature termination.
 
 	package

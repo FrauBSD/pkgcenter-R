@@ -3,8 +3,8 @@ Generic Targets:
    usage                   Print more detailed information on each target
 Global Building Targets:
    all_all                 Build all packages (works best on Linux)
-   depend_all              Perform `make depend' for all packages
-   forcedepend_all         Perform `make forcedepend' for all packages
+   stage_all               Perform `make stage' for all packages
+   forcestage_all          Perform `make forcestage' for all packages
 Global Maintenance Targets:
    clean_all               Perform `make clean' for all packags
    distclean_all           Perform `make distclean' for all packages

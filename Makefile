@@ -44,10 +44,10 @@ usage:
 # Recursive Targets
 #
 
-.PHONY: all_all depend_all forcedepend_all clean_all distclean_all
+.PHONY: all_all stage_all forcestage_all clean_all distclean_all
 .PHONY: pull_all commit_all tag_all forcetag_all
 
-all_all depend_all forcedepend_all clean_all distclean_all \
+all_all stage_all forcestage_all clean_all distclean_all \
 pull_all commit_all tag_all forcetag_all:
 	@export CONTINUE=; \
 	 ( set -- $(MFLAGS); \
@@ -103,6 +103,6 @@ pull:
 ################################################################################
 #
 # $Copyright: 1999-2017 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/Makefile 2019-11-19 22:41:11 -0800 freebsdfrau $
+# $FrauBSD: pkgcenter-R/Makefile 2019-11-20 00:09:30 -0800 freebsdfrau $
 #
 ################################################################################
