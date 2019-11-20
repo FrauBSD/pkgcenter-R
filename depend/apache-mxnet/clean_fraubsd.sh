@@ -3,7 +3,7 @@
 #
 # $Title: Script to clean apache-mxnet $
 # $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/apache-mxnet/clean_fraubsd.sh 2019-07-12 16:02:39 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/apache-mxnet/clean_fraubsd.sh 2019-11-19 23:47:13 -0800 freebsdfrau $
 #
 ############################################################ GLOBALS
 
@@ -51,6 +51,7 @@ for item in \
 	R-package/src/image_recordio.h \
 	R-package/src/mxnet.so \
 	build/ \
+	include/mkldnn/mkldnn_version.h \
 	install \
 	lib/ \
 	mklml/ \

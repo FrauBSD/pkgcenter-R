@@ -4,12 +4,17 @@
 #
 # $Title: Script to build apache-mxnet and install it to package sandbox $
 # $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/apache-mxnet/build_fraubsd.sh 2019-07-12 16:02:39 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/apache-mxnet/build_fraubsd.sh 2019-11-19 23:47:13 -0800 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
-R_HOME_DIR=/opt/R/3.6.0/lib64/R
+R_HOME_DIR=/opt/R/3.6.1/lib64/R
 DESTDIR=install/$R_HOME_DIR/library
+CUDA_PATH=/usr/local/cuda-10.1
+
+case "$( cat /etc/redhat-release )" in
+*" 6."*) . /opt/rh/devtoolset-4/enable || exit ;;
+esac
 
 ############################################################ GLOBALS
 
@@ -147,7 +152,14 @@ done
 #
 [ -e /usr/bin/cmake ] || eval2 sudo ln -sf cmake3 /usr/bin/cmake
 [ -e lib/libmxnet.so ] ||
-	eval2 make USE_OPENCV=1 USE_MKLDNN=1 USE_BLAS=mkl lib/libmxnet.so
+	eval2 make \
+		USE_CUDA=1 \
+		USE_CUDA_PATH=$CUDA_PATH \
+		USE_CUDNN=1 \
+		USE_OPENCV=1 \
+		USE_MKLDNN=1 \
+		USE_BLAS=mkl \
+		lib/libmxnet.so
 eval2 find 3rdparty/mkldnn/build/install -not -type d |
 	sed -e 's#^3rdparty/mkldnn/build/install#/usr#' | sort
 
@@ -163,6 +175,12 @@ eval2 find 3rdparty/mkldnn/build/install -not -type d |
 	eval2 cp -rf lib/libmxnet.so R-package/inst/libs
 [ -e R-package/inst/include ] || eval2 mkdir -p R-package/inst/include
 eval2 cp -rf include/* R-package/inst/include
+[ -L R-package/inst/include/dmlc ] &&
+	[ -d 3rdparty/dmlc-core/include/dmlc ] &&
+	eval2 rm -f R-package/inst/include/dmlc
+[ -L R-package/inst/include/nnvm ] &&
+	[ -d 3rdparty/tvm/nnvm/include/nnvm ] &&
+	eval2 rm -f R-package/inst/include/nnvm
 eval2 cp -rf 3rdparty/dmlc-core/include/* R-package/inst/include/
 eval2 cp -rf 3rdparty/tvm/nnvm/include/* R-package/inst/include
 if ! [ -e R-package/NAMESPACE -a \
