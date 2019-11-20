@@ -4,11 +4,15 @@
 #
 # $Title: Script to build R and install it to package sandbox $
 # $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/R-3.6.1/build_fraubsd.sh 2019-11-19 23:13:32 -0800 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/R-3.6.1/build_fraubsd.sh 2019-11-19 23:17:06 -0800 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
 MKL_ROOT=/opt/intel/compilers_and_libraries/linux/mkl
+
+case "$( cat /etc/redhat-release )" in
+*" 6."*) . /opt/rh/devtoolset-2/enable || exit 1 ;;
+esac
 
 ############################################################ GLOBALS
 
@@ -104,6 +108,7 @@ if [ ! -e Makefile ]; then
 		--with-cairo \
 		--with-tcltk \
 		--with-jpeglib \
+		LDFLAGS="${LDFLAGS:+$LDFLAGS }-L/usr/local/lib" \
 		$extra
 fi
 
