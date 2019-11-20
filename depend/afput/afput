@@ -1,13 +1,37 @@
 #!/bin/sh
 # -*- tab-width: 4 -*- ;; Emacs
 # vi: set noexpandtab  :: Vi/ViM
+#-
 ############################################################ IDENT(1)
 #
 # $Title: Script to upload (put) file into artifatory repository $
 # $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/afput/afput 2019-07-12 16:42:10 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/afput/afput 2019-11-19 23:26:38 -0800 freebsdfrau $
 #
 ############################################################ CONFIGURATION
+
+VERSION='$Version: 2.1 $'
+
+#
+# For URLs containing %R_VERS%
+#
+DEFAULT_R_VERS=3.3.1
+
+#
+# OS Glue
+#
+: "${uname_p:=$( uname -p | awk '/^i.86$/{$0="x86"}{print tolower($0)}' )}"
+: "${uname_s:=$( uname -s | awk '{print tolower($0)}' )}"
+
+#
+# For URLs containing %PLATFORM%
+#
+DEFAULT_PLATFORM="$uname_p-pc-$uname_s-gnu"
+case "$( cat /etc/redhat-release 2> /dev/null )" in
+*" 6."*) DEFAULT_PLATFORM="rhel6-$uname_p" ;;
+*" 7."*) DEFAULT_PLATFORM="rhel7-$uname_p" ;;
+*" 8."*) DEFAULT_PLATFORM="rhel8-$uname_p" ;;
+esac
 
 #
 # Artifactory settings
@@ -24,6 +48,9 @@ REPO_DIRS="
 
 	# Virtual CRAN
 	cran-dev/src/contrib/
+
+	# Virtual R binary packages
+	cran-dev/bin/%PLATFORM%/contrib/%R_VERS%
 " # END-QUOTE
 
 ############################################################ GLOBALS
@@ -39,9 +66,22 @@ FAILURE=1
 #
 # Command-line options
 #
-PASS=		# -p pass
-REPO_DIR=	# -r repo_dir
-USER=		# -u user
+PASS=				# -p pass
+REPO_DIR=			# -r repo_dir
+PLATFORM="$DEFAULT_PLATFORM"	# -P str
+R_VERS=$DEFAULT_R_VERS		# -R str
+SIGN=				# -s
+USER=				# -u user
+
+#
+# Miscellaneous
+#
+MD5=
+METHOD=
+SHA1=
+SHA256=
+URL=
+_URL=
 
 ############################################################ FUNCTIONS
 
@@ -62,9 +102,29 @@ die()
 
 usage()
 {
+	local optfmt="\t%-14s %s\n"
 	warn "$@"
-	echo "Usage: $0 [-u user] [-p pass] [-r repo_dir] file ..." >&2
+	exec >&2
+	echo "Usage: $0 [options] file ..." >&2
+	printf "$optfmt" "-P str" "Platform. Default \`$DEFAULT_PLATFORM'."
+	printf "$optfmt" "-R str" "R version. Default \`$DEFAULT_R_VERS'."
+	printf "$optfmt" "-p pass" "Password (\`~/.netrc' used if not given)."
+	printf "$optfmt" "-r repo_dir" "Repository directory."
+	printf "$optfmt" "-s" "Sign. Upload file signatures."
+	printf "$optfmt" "-u user" "User name (\`~/.netrc' used if not given)."
+	printf "$optfmt" "-v" "Print version and exit."
 	exit $FAILURE
+}
+
+digest()
+{
+	local file="$1"
+	MD5=$( openssl dgst -md5 "$file" 2> /dev/null ) &&
+		MD5="${MD5##*[$IFS]}"
+	SHA1=$( openssl dgst -sha1 "$file" 2> /dev/null ) &&
+		SHA1="${SHA1##*[$IFS]}"
+	SHA256=$( openssl dgst -sha256 "$file" 2> /dev/null ) &&
+		SHA256="${SHA256##*[$IFS]}"
 }
 
 ############################################################ MAIN
@@ -72,11 +132,17 @@ usage()
 #
 # Process command-line options
 #
-while getopts p:r:u: flag; do
+while getopts P:p:R:r:su:v flag; do
 	case "$flag" in
+	P) PLATFORM="$OPTARG" ;;
 	p) PASS="$OPTARG" ;;
+	R) R_VERS="$OPTARG" ;;
 	r) REPO_DIR="$OPTARG" ;;
+	s) SIGN=1 ;;
 	u) USER="$OPTARG" ;;
+	v) VERSION="${VERSION#*: }"
+		echo "${VERSION% $}"
+		exit $SUCCESS ;;
 	*) usage # NOTREACHED
 	esac
 done
@@ -111,27 +177,18 @@ done
 [ "$allok" ] || die
 
 #
-# Generate list of files to upload
-#
-if [ $# -eq 1 ]; then
-	list="$1"
-else
-	oldIFS="$IFS"
-	IFS=,
-	list="{$*}"
-	IFS="$oldIFS"
-fi
-
-#
 # Allow the user to select the destination repository
 #
 if [ ! "$REPO_DIR" ]; then
 	#
 	# Get a list of configured destination repositories
 	#
+	export PLATFORM R_VERS
 	repos=$( echo "$REPO_DIRS" | awk '!/^[[:space:]]*(#|$)/{
 		sub(/^[[:space:]]*/, "")
 		sub(/[[:space:]]*$/, "")
+		gsub(/%PLATFORM%/, ENVIRON["PLATFORM"])
+		gsub(/%R_VERS%/, ENVIRON["R_VERS"])
 		print
 	}' )
 	[ "$repos" ] || die "No configured repositories to choose from"
@@ -153,25 +210,64 @@ if [ ! "$REPO_DIR" ]; then
 		fi
 		break # all good
 	done
+else
+	export PLATFORM R_VERS
+	REPO_DIR=$( echo "$REPO_DIR" | awk '!/^[[:space:]]*(#|$)/{
+		sub(/^[[:space:]]*/, "")
+		sub(/[[:space:]]*$/, "")
+		gsub(/%PLATFORM%/, ENVIRON["PLATFORM"])
+		gsub(/%R_VERS%/, ENVIRON["R_VERS"])
+		print
+	}' )
+	[ "$REPO_DIR" ] || die "Empty repository"
 fi
 
 #
 # Upload
 #
-case "$REPO_DIR" in
-*/) : good ;;
-*) REPO_DIR="$REPO_DIR/"
-esac
 if [ -e "$HOME/.netrc" -a ! "$USER$PASS" ]; then
-	curl --netrc \
-		-X PUT "$REPO_URL$REPO_DIR" \
-		-T "$list" || die
+	AUTH=--netrc
 else
-	curl -u "${USER:-$( id -nu )}${PASS:+:$PASS}" \
-		-X PUT "$REPO_URL$REPO_DIR" \
-		-T "$list" || die
+	: "${USER:=$( id -nu )}"
+	AUTH="-u$USER${PASS:+:$PASS}"
 fi
-echo
+case "$REPO_DIR" in
+*\?*)
+	METHOD=POST
+	URL="${REPO_URL}api/$REPO_DIR"
+	;;
+*/)
+	METHOD=PUT
+	URL="$REPO_URL$REPO_DIR"
+	;;
+*)
+	METHOD=PUT
+	URL="$REPO_URL$REPO_DIR/"
+esac
+set -e # errexit
+for file in "$@"; do
+	digest "$file" # Sets $MD5 $SHA1 $SHA256
+	case "$METHOD" in
+	PUT)
+		if [ "$SIGN" ]; then
+			_URL="${URL%/}/${file##*/}"
+			curl "$AUTH" -X "$METHOD" "$_URL.md5" -d "$MD5"
+			curl "$AUTH" -X "$METHOD" "$_URL.sha1" -d "$SHA1"
+			curl "$AUTH" -X "$METHOD" "$_URL.sha256" -d "$SHA256"
+		else
+			[ "$MD5" ] && MD5="X-Checksum-Md5: $MD5"
+			[ "$SHA1" ] && SHA1="X-Checksum-Sha1: $SHA1"
+			[ "$SHA256" ] && SHA256="X-Checksum-Sha256: $SHA256"
+			curl "$AUTH" -X "$METHOD" "$URL" -T "$file" \
+				-H "$MD5" -H "$SHA1" -H "$SHA256"
+		fi
+		;;
+	POST)
+		curl "$AUTH" -X "$METHOD" "$URL" -T "$file"
+		;;
+	esac
+done
+[ "$METHOD" != "PUT" -o "$SIGN" ] || echo
 
 exit $SUCCESS
 
