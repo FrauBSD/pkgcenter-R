@@ -1,9 +1,10 @@
 #!/bin/sh
+#-
 ############################################################ IDENT(1)
 #
 # $Title: Script to build R and install it to package sandbox $
 # $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/R-3.5.2/build_fraubsd.sh 2019-07-12 23:16:50 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/R-3.5.2/build_fraubsd.sh 2019-11-19 23:13:01 -0800 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
