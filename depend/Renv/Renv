@@ -3,7 +3,7 @@
 #
 # $Title: R interpreter capable of bootstrapping custom environments $
 # $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/Renv/Renv 2020-05-07 09:22:40 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/Renv/Renv 2020-05-07 09:25:19 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -25,6 +25,11 @@ DEFAULT_PROFILE=.Renv
 ############################################################ ENVIRONMENT
 
 #
+# User home directory
+#
+: "${HOME:=$( echo ~ )}"
+
+#
 # Debugging
 #
 : ${RENV_DEBUG:=}
@@ -36,7 +41,7 @@ DEFAULT_PROFILE=.Renv
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 5.4 $'
+VERSION='$Version: 5.5 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -310,6 +315,10 @@ while [ $n -le $NLIBPATHS ]; do
 	found=
 	lproj=
 	eval libpath=\"\$LIBPATH$n\"
+	# Translate references to home-directory
+	case "$libpath" in
+	\~/*) libpath="$HOME/${libpath#\~/}" ;;
+	esac
 	# If relative path not matching library or */library
 	# check for path basename in RLIBRARY parent directory
 	[ "${libpath#/}" = "$libpath" -a \
