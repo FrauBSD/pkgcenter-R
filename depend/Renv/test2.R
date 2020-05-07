@@ -3,6 +3,7 @@
 cat("---------------------\n")
 library(foreach)
 scriptName <- if (exists("Renv.file.path")) Renv.file.path else ""
+scriptDir <- if (exists("Renv.dir.path")) Renv.dir.path else ""
 cat(sprintf("Begin %s\n", scriptName))
 stdin <- file("stdin", "r")
 if (!isatty(stdin())) {

@@ -2,6 +2,7 @@
 #!/usr/bin/env Rscript-3.1.1
 cat("---------------------\n")
 scriptName <- if (exists("Renv.file.path")) Renv.file.path else ""
+scriptDir <- if (exists("Renv.dir.path")) Renv.dir.path else ""
 cat(sprintf("Begin %s\n", scriptName))
 cat("+ Library paths are:\n")
 for(d in .libPaths()) {

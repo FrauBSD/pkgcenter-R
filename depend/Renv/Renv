@@ -3,7 +3,7 @@
 #
 # $Title: R interpreter capable of bootstrapping custom environments $
 # $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/Renv/Renv 2020-05-07 09:25:19 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/Renv/Renv 2020-05-07 09:29:28 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -41,7 +41,7 @@ DEFAULT_PROFILE=.Renv
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 5.5 $'
+VERSION='$Version: 5.6 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -275,6 +275,15 @@ while [ $n -le $# ]; do
 done
 
 #
+# Calculate RFILEDIR from RFILE
+#
+debug "RFILE=[%s]" "$RFILE"
+case "$RFILE" in
+*/*) RFILEDIR="${RFILE%/*}/" ;;
+esac
+debug "RFILEDIR=[%s]" "$RFILEDIR"
+
+#
 # Parse interpreter options
 #
 set -- $IARGS
@@ -305,11 +314,6 @@ debug "RLIBRARY=[%s]" "$RLIBRARY"
 #
 # Find virtual environment libraries
 #
-debug "RFILE=[%s]" "$RFILE"
-case "$RFILE" in
-*/*) RFILEDIR="${RFILE%/*}/" ;;
-esac
-debug "RFILEDIR=[%s]" "$RFILEDIR"
 n=1
 while [ $n -le $NLIBPATHS ]; do
 	found=
@@ -398,6 +402,7 @@ elif [ -e "$RFILEDIR$DEFAULT_PROFILE" ]; then
 fi
 EXPR="$EXPR; Renv.file.path <- c(\"$RFILE\")"
 EXPR="$EXPR; Renv.file.name <- c(\"${RFILE##*/}\")"
+EXPR="$EXPR; Renv.dir.path <- c(\"${RFILEDIR:-./}\")"
 [ ! "$RFILE" ] || EXPR="$EXPR; source(Renv.file.path)"
 EXPR="${EXPR#; }"
 
