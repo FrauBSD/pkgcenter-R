@@ -4,6 +4,7 @@ cat("---------------------\n")
 scriptName <- if (exists("Renv.file.path")) Renv.file.path else ""
 scriptDir <- if (exists("Renv.dir.path")) Renv.dir.path else ""
 cat(sprintf("Begin %s\n", scriptName))
+cat(sprintf("+ Dir %s\n", scriptDir))
 cat("+ Library paths are:\n")
 for(d in .libPaths()) {
 	cat(sprintf("  %s\n", d))

@@ -5,6 +5,7 @@ library(foreach)
 scriptName <- if (exists("Renv.file.path")) Renv.file.path else ""
 scriptDir <- if (exists("Renv.dir.path")) Renv.dir.path else ""
 cat(sprintf("Begin %s\n", scriptName))
+cat(sprintf("+ Dir %s\n", scriptDir))
 stdin <- file("stdin", "r")
 if (!isatty(stdin())) {
 	lines <- readLines(stdin)
