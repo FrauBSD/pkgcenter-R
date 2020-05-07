@@ -3,7 +3,7 @@
 #
 # $Title: R interpreter capable of bootstrapping custom environments $
 # $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/Renv/Renv 2020-05-07 09:38:20 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/Renv/Renv 2020-05-07 09:39:58 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -41,7 +41,7 @@ DEFAULT_PROFILE=.Renv
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 6.0 $'
+VERSION='$Version: 6.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -64,6 +64,7 @@ RLIBRARY=
 # Interpreter options
 #
 INTERACTIVE=		# -i
+INTERACTIVE_NOEXIT=	# -I
 NLIBPATHS=0		# -l dir
 RPROFILE=		# -p file
 
@@ -88,6 +89,7 @@ msg_debug="DEBUG"
 msg_enable_debug="Enable debug. Use multiple times for extra debugging."
 msg_extra_debugging_enabled="Extra debugging enabled"
 msg_force_interactive_mode="Force interactive mode()."
+msg_force_interactive_user="Force interactive user prompt. Implies \`-i'."
 msg_found="Found"
 msg_inherited="Inherited"
 msg_missing="Missing"
@@ -101,6 +103,7 @@ msg_usage="Usage"
 msg_use_dir_instead_of="Use dir instead of"
 msg_warning="WARNING"
 msg_i_cannot_be_combined_with_Rscript="-i cannot be combined with Rscript"
+msg_I_cannot_be_combined_with_Rscript="-I cannot be combined with Rscript"
 
 ############################################################ FUNCTIONS
 
@@ -120,7 +123,7 @@ usage()
 {
 	local optfmt="\t%-10s %s\n"
 	exec >&2
-	printf "$msg_usage: %s [-Dhiv] [-l dir] [-p file] [--] " "$pgm"
+	printf "$msg_usage: %s [-DhIiv] [-l dir] [-p file] [--] " "$pgm"
 	if [ "$R_INHERITED" ]; then
 		printf "[file [args]]\n"
 	else
@@ -129,6 +132,7 @@ usage()
 	printf "$msg_options:\n"
 	printf "$optfmt" "-D" "$msg_enable_debug"
 	printf "$optfmt" "-h" "$msg_print_usage_statement_to_stderr_and_exit"
+	printf "$optfmt" "-I" "$msg_force_interactive_user"
 	printf "$optfmt" "-i" "$msg_force_interactive_mode"
 	printf "$optfmt" "-l dir" \
 	    "$msg_use_dir_instead_of \`$DEFAULT_LIBRARY'."
@@ -291,9 +295,10 @@ debug "RFILEDIR=[%s]" "$RFILEDIR"
 # Parse interpreter options
 #
 set -- $IARGS
-while getopts Dhil:p:v flag; do
+while getopts DhIil:p:v flag; do
 	case "$flag" in
 	D) RENV_DEBUG=$(( ${RENV_DEBUG:-0} + 1 )) ;;
+	I) INTERACTIVE=1 INTERACTIVE_NOEXIT=1 ;;
 	i) INTERACTIVE=1 ;;
 	l) NLIBPATHS=$(( $NLIBPATHS + 1 ))
 	   eval LIBPATH$NLIBPATHS=\"\$OPTARG\" ;;
@@ -315,6 +320,8 @@ RBIN="${1##*/}"
 # Prevent non-functional option combinations
 #
 if [ "$RBIN" != "${RBIN#Rscript}" ]; then
+	[ ! "$INTERACTIVE_NOEXIT" ] ||
+		die "$msg_I_cannot_be_combined_with_Rscript"
 	[ ! "$INTERACTIVE" ] ||
 		die "$msg_i_cannot_be_combined_with_Rscript"
 fi
@@ -433,7 +440,7 @@ if [ "$RFILE" -a ! "$INTERACTIVE" ]; then
 	esac
 else
 	TMPENV=$( mktemp "$RENV_TMPDIR/$pgm.XXXXXXXX" ) || die
-	[ ! "$INTERACTIVE" ] || [ ! "$RFILE" ] ||
+	[ "$INTERACTIVE_NOEXIT" ] || [ ! "$INTERACTIVE" ] || [ ! "$RFILE" ] ||
 		EXPR="$EXPR; quit()"
 	echo "$EXPR" > "$TMPENV" || die
 	trap 'rm -f "$TMPENV"' EXIT

@@ -7,7 +7,7 @@ cat(sprintf("Begin %s\n", scriptName))
 cat(sprintf("+ Dir %s\n", scriptDir))
 cat(sprintf("+ Running: %sinteractive\n", if (interactive()) "" else "non-"))
 cat("+ browser()\n")
-browser() # Add -i to interpreter line to enable
+browser() # Add -i or -I to interpreter line to enable
 cat("+ Library paths are:\n")
 for(d in .libPaths()) {
 	cat(sprintf("  %s\n", d))
