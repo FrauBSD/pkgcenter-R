@@ -3,7 +3,7 @@
 #
 # $Title: R interpreter capable of bootstrapping custom environments $
 # $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/Renv/Renv 2019-11-19 23:21:15 -0800 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/Renv/Renv 2020-05-07 09:22:40 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -36,7 +36,7 @@ DEFAULT_PROFILE=.Renv
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 5.3 $'
+VERSION='$Version: 5.4 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -396,11 +396,10 @@ EXPR="${EXPR#; }"
 # Invoke desired R interpreter to run custom environment
 #
 if [ "$RFILE" ]; then
-	( echo "$EXPR"; cat "$RFILE" ) |
-		case "$RBIN" in
-		Rscript|Rscript-*) exec $R /dev/stdin "$@" ;;
-		*) exec $R --slave --no-restore /dev/stdin ${*:+--args "$@"}
-		esac
+	case "$RBIN" in
+	Rscript|Rscript-*) exec $R -e "$EXPR" "$RFILE" "$@" ;;
+	*) exec $R --slave --no-restore -e "$EXPR" ${*:+--args "$@"}
+	esac
 else
 	TMPENV=$( mktemp "$RENV_TMPDIR/$pgm.XXXXXXXX" ) || die
 	echo "$EXPR" > "$TMPENV" || die

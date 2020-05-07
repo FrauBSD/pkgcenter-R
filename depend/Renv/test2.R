@@ -5,7 +5,11 @@ library(foreach)
 scriptName <- if (exists("Renv.file.path")) Renv.file.path else ""
 cat(sprintf("Begin %s\n", scriptName))
 stdin <- file("stdin", "r")
-lines <- readLines(stdin)
+if (!isatty(stdin())) {
+	lines <- readLines(stdin)
+} else {
+	lines <- c()
+}
 nlines <- length(lines)
 cat(sprintf("+ %d lines from stdin\n", nlines))
 if (nlines > 0) {
