@@ -1,0 +1,367 @@
+--- src/include/Rinlinedfuns.h.orig	2020-02-20 19:28:02.861079685 -0800
++++ src/include/Rinlinedfuns.h	2020-02-20 19:28:07.303140721 -0800
+@@ -115,6 +115,38 @@ INLINE_FUN R_len_t length(SEXP s)
+     }
+ }
+ 
++INLINE_FUN R_xlen_t xlength(SEXP s)
++{
++    int i;
++    switch (TYPEOF(s)) {
++    case NILSXP:
++	return 0;
++    case LGLSXP:
++    case INTSXP:
++    case REALSXP:
++    case CPLXSXP:
++    case STRSXP:
++    case CHARSXP:
++    case VECSXP:
++    case EXPRSXP:
++    case RAWSXP:
++	return XLENGTH(s);
++    case LISTSXP:
++    case LANGSXP:
++    case DOTSXP:
++	i = 0;
++	while (s != NULL && s != R_NilValue) {
++	    i++;
++	    s = CDR(s);
++	}
++	return i;
++    case ENVSXP:
++	return Rf_envlength(s);
++    default:
++	return 1;
++    }
++}
++
+ 
+ /* from list.c */
+ /* Return a dotted pair with the given CAR and CDR. */
+--- src/include/Rinternals.h.orig	2020-02-21 01:51:42.548757168 -0800
++++ src/include/Rinternals.h	2020-02-21 01:53:12.344868698 -0800
+@@ -48,6 +48,8 @@ typedef unsigned char Rbyte;
+ /* type for length of vectors etc */
+ typedef int R_len_t; /* will be long later, LONG64 or ssize_t on Win64 */
+ #define R_LEN_T_MAX INT_MAX
++typedef int R_xlen_t;
++#define R_XLEN_T_MAX R_LEN_T_MAX
+ 
+ /* Fundamental Data Types:  These are largely Lisp
+  * influenced structures, with the exception of LGLSXP,
+@@ -266,6 +268,8 @@ typedef union { VECTOR_SEXPREC s; double
+ /* Vector Access Macros */
+ #define LENGTH(x)	(((VECSEXP) (x))->vecsxp.length)
+ #define TRUELENGTH(x)	(((VECSEXP) (x))->vecsxp.truelength)
++#define XLENGTH(x)	LENGTH(x)
++#define XTRUELENGTH(x)	TRUELENGTH(x)
+ #define SETLENGTH(x,v)		((((VECSEXP) (x))->vecsxp.length)=(v))
+ #define SET_TRUELENGTH(x,v)	((((VECSEXP) (x))->vecsxp.truelength)=(v))
+ 
+@@ -352,6 +356,13 @@ Rboolean (Rf_isObject)(SEXP s);
+ 
+ #endif /* USE_RINTERNALS */
+ 
++#define NAMEDMAX 2
++
++/* Macros for some common idioms. */
++#define MAYBE_SHARED(x) (NAMED(x) > 1)
++#define NO_REFERENCES(x) (NAMED(x) == 0)
++#define MARK_NOT_MUTABLE(x) SET_NAMED(x, NAMEDMAX)
++
+ /* Accessor functions.  Many are declared using () to avoid the macro
+    definitions in the USE_RINTERNALS section.
+    The function STRING_ELT is used as an argument to arrayAssign even
+@@ -380,6 +391,8 @@ int  (LENGTH)(SEXP x);
+ int  (TRUELENGTH)(SEXP x);
+ void (SETLENGTH)(SEXP x, int v);
+ void (SET_TRUELENGTH)(SEXP x, int v);
++R_xlen_t  (XLENGTH)(SEXP x);
++R_xlen_t  (XTRUELENGTH)(SEXP x);
+ int  (LEVELS)(SEXP x);
+ int  (SETLEVELS)(SEXP x, int v);
+ 
+@@ -600,6 +613,7 @@ SEXP Rf_dimgets(SEXP, SEXP);
+ SEXP Rf_dimnamesgets(SEXP, SEXP);
+ SEXP Rf_DropDims(SEXP);
+ SEXP Rf_duplicate(SEXP);
++SEXP Rf_shallow_duplicate(SEXP);
+ SEXP Rf_duplicated(SEXP, Rboolean);
+ SEXP Rf_eval(SEXP, SEXP);
+ SEXP Rf_findFun(SEXP, SEXP);
+@@ -622,6 +636,7 @@ Rboolean Rf_isOrdered(SEXP);
+ Rboolean Rf_isUnordered(SEXP);
+ Rboolean Rf_isUnsorted(SEXP, Rboolean);
+ SEXP Rf_lengthgets(SEXP, R_len_t);
++SEXP Rf_xlengthgets(SEXP, R_xlen_t);
+ SEXP R_lsInternal(SEXP, Rboolean);
+ SEXP Rf_match(SEXP, SEXP, int);
+ SEXP Rf_matchE(SEXP, SEXP, int, SEXP);
+@@ -996,6 +1011,7 @@ Rboolean R_compute_identical(SEXP, SEXP,
+ #define setAttrib		Rf_setAttrib
+ #define setSVector		Rf_setSVector
+ #define setVar			Rf_setVar
++#define shallow_duplicate	Rf_shallow_duplicate
+ #define str2type		Rf_str2type
+ #define StringBlank		Rf_StringBlank
+ #define substitute		Rf_substitute
+@@ -1009,6 +1025,8 @@ Rboolean R_compute_identical(SEXP, SEXP,
+ #define VectorToPairList	Rf_VectorToPairList
+ #define warningcall		Rf_warningcall
+ #define warningcall_immediate	Rf_warningcall_immediate
++#define xlength(x)		Rf_xlength(x)
++#define xlengthgets		Rf_xlengthgets
+ 
+ #endif
+ 
+@@ -1070,6 +1088,7 @@ SEXP	 Rf_ScalarLogical(int);
+ SEXP	 Rf_ScalarRaw(Rbyte);
+ SEXP	 Rf_ScalarReal(double);
+ SEXP	 Rf_ScalarString(SEXP);
++R_xlen_t  Rf_xlength(SEXP);
+ #endif
+ 
+ #ifdef USE_RINTERNALS
+--- src/main/builtin.c.orig	2020-02-21 02:16:17.632047927 -0800
++++ src/main/builtin.c	2020-02-21 02:22:13.949276602 -0800
+@@ -759,13 +759,13 @@ SEXP attribute_hidden do_makevector(SEXP
+ /* (if it is vectorizable). We could probably be fairly */
+ /* clever with memory here if we wanted to. */
+ 
+-SEXP lengthgets(SEXP x, R_len_t len)
++SEXP xlengthgets(SEXP x, R_xlen_t len)
+ {
+-    R_len_t lenx, i;
++    R_xlen_t lenx, i;
+     SEXP rval, names, xnames, t;
+     if (!isVector(x) && !isVectorizable(x))
+ 	error(_("cannot set length of non-vector"));
+-    lenx = length(x);
++    lenx = xlength(x);
+     if (lenx == len)
+ 	return (x);
+     PROTECT(rval = allocVector(TYPEOF(x), len));
+@@ -851,6 +851,11 @@ SEXP lengthgets(SEXP x, R_len_t len)
+     return rval;
+ }
+ 
++SEXP lengthgets(SEXP x, R_len_t len)
++{
++    return xlengthgets(x, (R_xlen_t) len);
++}
++
+ 
+ SEXP attribute_hidden do_lengthgets(SEXP call, SEXP op, SEXP args, SEXP rho)
+ {
+--- src/main/duplicate.c.orig	2020-02-21 00:09:02.554051723 -0800
++++ src/main/duplicate.c	2020-02-21 00:43:55.122668279 -0800
+@@ -43,7 +43,7 @@
+    a small but measurable difference, at least for some cases
+    and when (in R 2.15.x) a for() loop was used.
+ */
+-#define DUPLICATE_ATOMIC_VECTOR(type, fun, to, from) do {\
++#define DUPLICATE_ATOMIC_VECTOR(type, fun, to, from, deep) do {\
+   int __n__ = LENGTH(from);\
+   PROTECT(from); \
+   PROTECT(to = allocVector(TYPEOF(from), __n__)); \
+@@ -54,7 +54,7 @@
+     for (__i__ = 0; __i__ < __n__; __i__++) \
+       __tp__[__i__] = __fp__[__i__]; \
+   } \
+-  DUPLICATE_ATTRIB(to, from);		\
++  DUPLICATE_ATTRIB(to, from, deep);	\
+   SET_TRUELENGTH(to, TRUELENGTH(from)); \
+   UNPROTECT(2); \
+ } while (0)
+@@ -63,10 +63,10 @@
+    assignment functions (and duplicate in the case of ATTRIB) when the
+    ATTRIB or TAG value to be stored is R_NilValue, the value the field
+    will have been set to by the allocation function */
+-#define DUPLICATE_ATTRIB(to, from) do {\
++#define DUPLICATE_ATTRIB(to, from, deep) do {\
+   SEXP __a__ = ATTRIB(from); \
+   if (__a__ != R_NilValue) { \
+-    SET_ATTRIB(to, duplicate1(__a__)); \
++    SET_ATTRIB(to, duplicate1(__a__, deep)); \
+     SET_OBJECT(to, OBJECT(from)); \
+     IS_S4_OBJECT(from) ? SET_S4_OBJECT(to) : UNSET_S4_OBJECT(to);  \
+   } \
+@@ -88,7 +88,7 @@
+    is not defined, because we still need to be able to
+    optionally rename duplicate() as Rf_duplicate().
+ */
+-static SEXP duplicate1(SEXP);
++static SEXP duplicate1(SEXP, Rboolean deep);
+ 
+ #ifdef R_PROFILING
+ static unsigned long duplicate_counter = (unsigned long)-1;
+@@ -112,7 +112,26 @@ SEXP duplicate(SEXP s){
+ #ifdef R_PROFILING
+     duplicate_counter++;
+ #endif
+-    t = duplicate1(s);
++    t = duplicate1(s, TRUE);
++#ifdef R_MEMORY_PROFILING
++    if (RTRACE(s) && !(TYPEOF(s) == CLOSXP || TYPEOF(s) == BUILTINSXP ||
++		      TYPEOF(s) == SPECIALSXP || TYPEOF(s) == PROMSXP ||
++		      TYPEOF(s) == ENVSXP)){
++	    memtrace_report(s,t);
++	    SET_RTRACE(t,1);
++    }
++#endif
++    return t;
++}
++
++SEXP shallow_duplicate(SEXP s)
++{
++    SEXP t;
++
++#ifdef R_PROFILING
++    duplicate_counter++;
++#endif
++    t = duplicate1(s, FALSE);
+ #ifdef R_MEMORY_PROFILING
+     if (RTRACE(s) && !(TYPEOF(s) == CLOSXP || TYPEOF(s) == BUILTINSXP ||
+ 		      TYPEOF(s) == SPECIALSXP || TYPEOF(s) == PROMSXP ||
+@@ -126,10 +145,10 @@ SEXP duplicate(SEXP s){
+ 
+ /*****************/
+ 
+-static SEXP duplicate1(SEXP s)
++static SEXP duplicate1(SEXP s, Rboolean deep)
+ {
+     SEXP h, t,  sp;
+-    int i, n;
++    R_xlen_t i, n;
+ 
+     switch (TYPEOF(s)) {
+     case NILSXP:
+@@ -155,17 +174,17 @@ static SEXP duplicate1(SEXP s)
+ 	SET_FORMALS(t, FORMALS(s));
+ 	SET_BODY(t, BODY(s));
+ 	SET_CLOENV(t, CLOENV(s));
+-	DUPLICATE_ATTRIB(t, s);
++	DUPLICATE_ATTRIB(t, s, deep);
+ 	UNPROTECT(2);
+ 	break;
+     case LISTSXP:
+ 	PROTECT(sp = s);
+ 	PROTECT(h = t = CONS(R_NilValue, R_NilValue));
+ 	while(sp != R_NilValue) {
+-	    SETCDR(t, CONS(duplicate1(CAR(sp)), R_NilValue));
++	    SETCDR(t, CONS(duplicate1(CAR(sp), deep), R_NilValue));
+ 	    t = CDR(t);
+ 	    COPY_TAG(t, sp);
+-	    DUPLICATE_ATTRIB(t, sp);
++	    DUPLICATE_ATTRIB(t, sp, deep);
+ 	    sp = CDR(sp);
+ 	}
+ 	t = CDR(h);
+@@ -175,30 +194,30 @@ static SEXP duplicate1(SEXP s)
+ 	PROTECT(sp = s);
+ 	PROTECT(h = t = CONS(R_NilValue, R_NilValue));
+ 	while(sp != R_NilValue) {
+-	    SETCDR(t, CONS(duplicate1(CAR(sp)), R_NilValue));
++	    SETCDR(t, CONS(duplicate1(CAR(sp), deep), R_NilValue));
+ 	    t = CDR(t);
+ 	    COPY_TAG(t, sp);
+-	    DUPLICATE_ATTRIB(t, sp);
++	    DUPLICATE_ATTRIB(t, sp, deep);
+ 	    sp = CDR(sp);
+ 	}
+ 	t = CDR(h);
+ 	SET_TYPEOF(t, LANGSXP);
+-	DUPLICATE_ATTRIB(t, s);
++	DUPLICATE_ATTRIB(t, s, deep);
+ 	UNPROTECT(2);
+ 	break;
+     case DOTSXP:
+ 	PROTECT(sp = s);
+ 	PROTECT(h = t = CONS(R_NilValue, R_NilValue));
+ 	while(sp != R_NilValue) {
+-	    SETCDR(t, CONS(duplicate1(CAR(sp)), R_NilValue));
++	    SETCDR(t, CONS(duplicate1(CAR(sp), deep), R_NilValue));
+ 	    t = CDR(t);
+ 	    COPY_TAG(t, sp);
+-	    DUPLICATE_ATTRIB(t, sp);
++	    DUPLICATE_ATTRIB(t, sp, deep);
+ 	    sp = CDR(sp);
+ 	}
+ 	t = CDR(h);
+ 	SET_TYPEOF(t, DOTSXP);
+-	DUPLICATE_ATTRIB(t, s);
++	DUPLICATE_ATTRIB(t, s, deep);
+ 	UNPROTECT(2);
+ 	break;
+     case CHARSXP:
+@@ -210,21 +229,21 @@ static SEXP duplicate1(SEXP s)
+ 	PROTECT(s);
+ 	PROTECT(t = allocVector(TYPEOF(s), n));
+ 	for(i = 0 ; i < n ; i++)
+-	    SET_VECTOR_ELT(t, i, duplicate1(VECTOR_ELT(s, i)));
+-	DUPLICATE_ATTRIB(t, s);
++	    SET_VECTOR_ELT(t, i, duplicate1(VECTOR_ELT(s, i), deep));
++	DUPLICATE_ATTRIB(t, s, deep);
+ 	SET_TRUELENGTH(t, TRUELENGTH(s));
+ 	UNPROTECT(2);
+ 	break;
+-    case LGLSXP: DUPLICATE_ATOMIC_VECTOR(int, LOGICAL, t, s); break;
+-    case INTSXP: DUPLICATE_ATOMIC_VECTOR(int, INTEGER, t, s); break;
+-    case REALSXP: DUPLICATE_ATOMIC_VECTOR(double, REAL, t, s); break;
+-    case CPLXSXP: DUPLICATE_ATOMIC_VECTOR(Rcomplex, COMPLEX, t, s); break;
+-    case RAWSXP: DUPLICATE_ATOMIC_VECTOR(Rbyte, RAW, t, s); break;
++    case LGLSXP: DUPLICATE_ATOMIC_VECTOR(int, LOGICAL, t, s, deep); break;
++    case INTSXP: DUPLICATE_ATOMIC_VECTOR(int, INTEGER, t, s, deep); break;
++    case REALSXP: DUPLICATE_ATOMIC_VECTOR(double, REAL, t, s, deep); break;
++    case CPLXSXP: DUPLICATE_ATOMIC_VECTOR(Rcomplex, COMPLEX, t, s, deep); break;
++    case RAWSXP: DUPLICATE_ATOMIC_VECTOR(Rbyte, RAW, t, s, deep); break;
+     case STRSXP:
+ 	/* direct copying and bypassing the write barrier is OK since
+ 	   t was just allocated and so it cannot be older than any of
+ 	   the elements in s.  LT */
+-	DUPLICATE_ATOMIC_VECTOR(SEXP, STRING_PTR, t, s);
++	DUPLICATE_ATOMIC_VECTOR(SEXP, STRING_PTR, t, s, deep);
+ 	break;
+     case PROMSXP:
+ 	return s;
+@@ -232,7 +251,7 @@ static SEXP duplicate1(SEXP s)
+     case S4SXP:
+ 	PROTECT(s);
+ 	PROTECT(t = allocS4Object());
+-	DUPLICATE_ATTRIB(t, s);
++	DUPLICATE_ATTRIB(t, s, deep);
+ 	UNPROTECT(2);
+ 	break;
+     default:
+--- src/main/memory.c.orig	2020-02-21 02:59:17.757755402 -0800
++++ src/main/memory.c	2020-02-21 03:03:13.973743136 -0800
+@@ -2983,11 +2983,28 @@ int (IS_S4_OBJECT)(SEXP x){ return IS_S4
+ void (SET_S4_OBJECT)(SEXP x){ SET_S4_OBJECT(CHK(x)); }
+ void (UNSET_S4_OBJECT)(SEXP x){ UNSET_S4_OBJECT(CHK(x)); }
+ 
++static int nvec[32] = {
++    0,1,1,1,1,1,1,1,  // does NILSXP really count?
++    1,0,0,1,1,0,0,0,
++    0,1,1,0,0,1,1,0,
++    0,1,1,1,1,1,1,1
++};
++
++static R_INLINE SEXP CHK2(SEXP x)
++{
++    x = CHK(x);
++    if(nvec[TYPEOF(x)])
++	error("LENGTH or similar applied to %s object", type2char(TYPEOF(x)));
++    return x;
++}
++ 
+ /* Vector Accessors */
+ int (LENGTH)(SEXP x) { return LENGTH(CHK(x)); }
+ int (TRUELENGTH)(SEXP x) { return TRUELENGTH(CHK(x)); }
+ void (SETLENGTH)(SEXP x, int v) { SETLENGTH(CHK(x), v); }
+ void (SET_TRUELENGTH)(SEXP x, int v) { SET_TRUELENGTH(CHK(x), v); }
++R_xlen_t (XLENGTH)(SEXP x) { return XLENGTH(CHK2(x)); }
++R_xlen_t (XTRUELENGTH)(SEXP x) { return XTRUELENGTH(CHK2(x)); }
+ 
+ const char *(R_CHAR)(SEXP x) {
+     if(TYPEOF(x) != CHARSXP)

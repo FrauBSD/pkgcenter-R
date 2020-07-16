@@ -1,0 +1,70 @@
+--- src/main/Rdynload.c.orig	2020-02-20 17:52:41.887690646 -0800
++++ src/main/Rdynload.c	2020-02-20 17:58:41.687554949 -0800
+@@ -189,6 +189,14 @@ Rboolean R_useDynamicSymbols(DllInfo *in
+     return(old);
+ }
+ 
++Rboolean R_forceSymbols(DllInfo *info, Rboolean value)
++{
++    Rboolean old;
++    old = info->forceSymbols;
++    info->forceSymbols = value;
++    return old;
++}
++
+ static void
+ R_addCRoutine(DllInfo *info, const R_CMethodDef * const croutine,
+ 	      Rf_DotCSymbol *sym);
+@@ -251,6 +259,7 @@ R_registerRoutines(DllInfo *info, const 
+        if there are any registered values.
+     */
+     info->useDynamicLookup = (info->handle)?TRUE:FALSE;
++    info->forceSymbols = FALSE;
+ 
+     if(croutines) {
+ 	for(num=0; croutines[num].name != NULL; num++) {;}
+@@ -484,6 +493,7 @@ found:
+ 	LoadedDLL[i - 1].CallSymbols = LoadedDLL[i].CallSymbols;
+ 	LoadedDLL[i - 1].FortranSymbols = LoadedDLL[i].FortranSymbols;
+ 	LoadedDLL[i - 1].ExternalSymbols = LoadedDLL[i].ExternalSymbols;
++	LoadedDLL[i - 1].forceSymbols = LoadedDLL[i].forceSymbols;
+     }
+     CountDLL--;
+     return 1;
+@@ -587,6 +597,7 @@ static DllInfo *R_RegisterDLL(HINSTANCE 
+        initialization routine can limit access by setting this to FALSE.
+     */
+     info->useDynamicLookup = TRUE;
++    info->forceSymbols = FALSE;
+ 
+     dpath = (char *) malloc(strlen(path)+1);
+     if(dpath == NULL) {
+@@ -841,6 +852,7 @@ DL_FUNC R_FindSymbol(char const *name, c
+     for (i = CountDLL - 1; i >= 0; i--) {
+ 	doit = all;
+ 	if(!doit && !strcmp(pkg, LoadedDLL[i].name)) doit = 2;
++	if(doit && LoadedDLL[i].forceSymbols) doit = 0;
+ 	if(doit) {
+ 	    fcnptr = R_dlsym(&LoadedDLL[i], name, symbol); /* R_osDynSymbol->dlsym */
+ 	    if (fcnptr != (DL_FUNC) NULL) {
+--- src/include/R_ext/Rdynload.h.orig	2020-02-20 17:53:36.407426773 -0800
++++ src/include/R_ext/Rdynload.h	2020-02-20 17:53:48.619591768 -0800
+@@ -99,6 +99,7 @@ int R_registerRoutines(DllInfo *info, co
+                        const R_ExternalMethodDef * const externalRoutines);
+ 
+ Rboolean R_useDynamicSymbols(DllInfo *info, Rboolean value);
++Rboolean R_forceSymbols(DllInfo *info, Rboolean value);
+ 
+ DllInfo *R_getDllInfo(const char *name);
+ 
+--- src/include/Rdynpriv.h.orig	2020-02-20 17:59:56.032562396 -0800
++++ src/include/Rdynpriv.h	2020-02-20 17:59:58.029589400 -0800
+@@ -126,6 +126,8 @@ struct _DllInfo {
+ 
+     int numExternalSymbols;
+     Rf_DotExternalSymbol *ExternalSymbols;
++
++    Rboolean forceSymbols;
+ };
+ 
+ 

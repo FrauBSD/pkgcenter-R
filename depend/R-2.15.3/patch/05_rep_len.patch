@@ -1,0 +1,162 @@
+--- src/gnuwin32/Rdll.hide.orig	2020-02-22 12:53:38.558661000 -0800
++++ src/gnuwin32/Rdll.hide	2020-02-22 12:54:05.486004496 -0800
+@@ -964,6 +964,7 @@
+  do_remove
+  do_rep
+  do_rep_int
++ do_rep_len
+  do_repeat
+  do_resetCondHands
+  do_restart
+--- src/include/Internal.h.orig	2020-02-22 12:52:33.147825646 -0800
++++ src/include/Internal.h	2020-02-22 12:52:46.629997864 -0800
+@@ -414,6 +414,7 @@ SEXP do_relop_dflt(SEXP, SEXP, SEXP, SEX
+ SEXP do_remove(SEXP, SEXP, SEXP, SEXP);
+ SEXP do_rep(SEXP, SEXP, SEXP, SEXP);
+ SEXP do_rep_int(SEXP, SEXP, SEXP, SEXP);
++SEXP do_rep_len(SEXP, SEXP, SEXP, SEXP);
+ SEXP do_repeat(SEXP, SEXP, SEXP, SEXP);
+ SEXP do_resetCondHands(SEXP, SEXP, SEXP, SEXP);
+ SEXP do_restart(SEXP, SEXP, SEXP, SEXP);
+--- src/library/base/man/rep.Rd.orig	2020-02-22 12:33:59.219617756 -0800
++++ src/library/base/man/rep.Rd	2020-02-22 12:35:27.812746743 -0800
+@@ -10,18 +10,22 @@
+ \alias{rep.POSIXct}
+ \alias{rep.POSIXlt}
+ \alias{rep.Date}
++\alias{rep_len}
+ 
+ \title{Replicate Elements of Vectors and Lists}
+ \description{
+   \code{rep} replicates the values in \code{x}.  It is a generic
+   function, and the (internal) default method is described here.
+ 
+-  \code{rep.int} is a faster simplified version for the most common case.
++  \code{rep.int} and \code{rep_len} are faster simplified versions for
++  two common cases.  They are not generic.
+ }
+ \usage{
+ rep(x, \dots)
+ 
+ rep.int(x, times)
++
++rep_len(x, length.out)
+ }
+ \arguments{
+   \item{x}{a vector (of any mode including a list) or a factor or
+@@ -78,8 +82,8 @@ rep.int(x, times)
+ \value{
+   An object of the same type as \code{x}.
+ 
+-  \code{rep.int} returns no attributes (except the class if returning a
+-  factor).
++  \code{rep.int} and \code{rep_len} return no attributes (except the
++  class if returning a factor).
+ 
+   The default method of \code{rep} gives the result names (which will
+   almost always contain duplicates) if \code{x} had names, but retains
+@@ -132,6 +136,7 @@ x
+ rep(x, 2)
+ rep(x, each=2)
+ rep.int(x, 2)  # no names
++rep_len(x, 10)
+ }
+ \keyword{manip}
+ \keyword{chron}
+--- src/library/base/R/rep.R.orig	2020-02-22 12:36:58.455902714 -0800
++++ src/library/base/R/rep.R	2020-02-22 12:37:03.505966813 -0800
+@@ -18,6 +18,8 @@
+ 
+ rep.int <- function(x, times) .Internal(rep.int(x, times))
+ 
++rep_len <- function(x, length.out) .Internal(rep_len(x, length.out))
++
+ rep.factor <- function(x, ...)
+ {
+     y <- NextMethod()
+--- src/main/names.c.orig	2020-02-22 12:38:41.059210893 -0800
++++ src/main/names.c	2020-02-22 12:39:04.568510552 -0800
+@@ -597,6 +597,7 @@ attribute_hidden FUNTAB R_FunTab[] =
+ {"invisible",	do_invisible,	0,	101,	1,	{PP_FUNCALL, PREC_FN,	0}},
+ {"rep",		do_rep,		0,	0,	-1,	{PP_FUNCALL, PREC_FN,	0}},
+ {"rep.int",	do_rep_int,	0,	11,	2,	{PP_FUNCALL, PREC_FN,	0}},
++{"rep_len",	do_rep_len,	0,	11,	2,	{PP_FUNCALL, PREC_FN,	0}},
+ {"seq.int",	do_seq,		0,	1,	-1,	{PP_FUNCALL, PREC_FN,	0}},
+ {"seq_len",	do_seq_len,	0,	1,	1,	{PP_FUNCALL, PREC_FN,	0}},
+ {"seq_along",	do_seq_along,	0,	1,	1,	{PP_FUNCALL, PREC_FN,	0}},
+--- src/main/seq.c.orig	2020-02-22 12:40:02.982255863 -0800
++++ src/main/seq.c	2020-02-22 12:46:09.718933292 -0800
+@@ -225,7 +225,7 @@ static SEXP rep2(SEXP s, SEXP ncopy)
+     return a;
+ }
+ 
+-/* rep.int() with scalar 'times', rep(x, length.out=) */
++/* rep_len(x, len), also used for rep.int() with scalar 'times' */
+ static SEXP rep3(SEXP s, int ns, int na)
+ {
+     int i, j;
+@@ -341,6 +341,64 @@ SEXP attribute_hidden do_rep_int(SEXP ca
+     return a;
+ }
+ 
++SEXP attribute_hidden do_rep_len(SEXP call, SEXP op, SEXP args, SEXP rho)
++{
++    R_xlen_t ns, na;
++    SEXP a, s, len;
++
++    checkArity(op, args);
++    s = CAR(args);
++
++    if (!isVector(s) && s != R_NilValue)
++	error(_("attempt to replicate non-vector"));
++
++    len = CADR(args);
++    if(length(len) != 1)
++	error(_("invalid '%s' value"), "length.out");
++#ifdef LONG_VECTOR_SUPPORT
++    double sna = asReal(len);
++    if (!R_FINITE(sna) || sna < 0)
++	error(_("invalid '%s' value"), "length.out");
++    na = (R_xlen_t) sna;
++#else
++    if ((na = asInteger(len)) == NA_INTEGER || na < 0) /* na = 0 ok */
++	error(_("invalid '%s' value"), "length.out");
++#endif
++
++    if (TYPEOF(s) == NILSXP && na > 0)
++	error(_("cannot replicate NULL to a non-zero length"));
++    ns = xlength(s);
++    if (ns == 0) {
++	SEXP a;
++	PROTECT(a = duplicate(s));
++	if(na > 0) a = xlengthgets(a, na);
++	UNPROTECT(1);
++	return a;
++    }
++    PROTECT(a = rep3(s, ns, na));
++
++#ifdef _S4_rep_keepClass
++    if(IS_S4_OBJECT(s)) { /* e.g. contains = "list" */
++	setAttrib(a, R_ClassSymbol, getAttrib(s, R_ClassSymbol));
++	SET_S4_OBJECT(a);
++    }
++#endif
++
++    if (inherits(s, "factor")) {
++	SEXP tmp;
++	if(inherits(s, "ordered")) {
++	    PROTECT(tmp = allocVector(STRSXP, 2));
++	    SET_STRING_ELT(tmp, 0, mkChar("ordered"));
++	    SET_STRING_ELT(tmp, 1, mkChar("factor"));
++	} else PROTECT(tmp = mkString("factor"));
++	setAttrib(a, R_ClassSymbol, tmp);
++	UNPROTECT(1);
++	setAttrib(a, R_LevelsSymbol, getAttrib(s, R_LevelsSymbol));
++    }
++    UNPROTECT(1);
++    return a;
++}
++
+ /* rep(), allowing for both times and each */
+ static SEXP rep4(SEXP x, SEXP times, int len, int each, int nt)
+ {

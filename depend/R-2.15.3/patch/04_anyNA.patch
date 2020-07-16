@@ -1,0 +1,320 @@
+--- src/gnuwin32/Rdll.hide.orig	2020-02-22 09:45:19.520756697 -0800
++++ src/gnuwin32/Rdll.hide	2020-02-22 09:45:35.817963285 -0800
+@@ -575,6 +575,7 @@
+  do_adist
+  do_agrep
+  do_allnames
++ do_anyNA
+  do_aperm
+  do_aregexec
+  do_args
+--- src/include/Internal.h.orig	2020-02-22 09:44:41.075269434 -0800
++++ src/include/Internal.h	2020-02-22 09:44:42.750290456 -0800
+@@ -92,6 +92,7 @@ SEXP do_adist(SEXP, SEXP, SEXP, SEXP);
+ SEXP do_agrep(SEXP, SEXP, SEXP, SEXP);
+ SEXP do_allnames(SEXP, SEXP, SEXP, SEXP);
+ SEXP do_anydf(SEXP, SEXP, SEXP, SEXP);
++SEXP do_anyNA(SEXP, SEXP, SEXP, SEXP);
+ SEXP do_aperm(SEXP, SEXP, SEXP, SEXP);
+ SEXP do_aregexec(SEXP, SEXP, SEXP, SEXP);
+ SEXP do_args(SEXP, SEXP, SEXP, SEXP);
+--- src/library/base/man/DateTimeClasses.Rd.orig	2020-02-22 09:21:13.275144074 -0800
++++ src/library/base/man/DateTimeClasses.Rd	2020-02-22 09:21:24.445275123 -0800
+@@ -29,6 +29,7 @@
+ \alias{as.data.frame.POSIXlt}
+ \alias{as.list.POSIXct}
+ \alias{.leap.seconds}
++\alias{anyNA.POSIXlt}
+ \alias{is.na.POSIXlt}
+ \alias{all.equal.POSIXct}
+ \alias{c.POSIXct}
+--- src/library/base/man/NA.Rd.orig	2020-02-22 09:26:11.723685226 -0800
++++ src/library/base/man/NA.Rd	2020-02-22 09:33:28.529956885 -0800
+@@ -13,6 +13,7 @@
+ \alias{is.na.data.frame}
+ \alias{is.na<-}
+ \alias{is.na<-.default}
++\alias{anyNA}
+ \title{\sQuote{Not Available} / Missing Values}
+ \description{
+   \code{NA} is a logical constant of length 1 which contains a missing
+@@ -25,17 +26,23 @@
+   The generic function \code{is.na} indicates which elements are missing.
+ 
+   The generic function \code{is.na<-} sets elements to \code{NA}.
++
++  The generic function \code{anyNA} implements \code{any(is.na(x))} in a
++  possibly faster way (especially for atomic vectors).
+ }
+ \usage{
+ NA
+ is.na(x)
++anyNA(x)
++
+ \method{is.na}{data.frame}(x)
+ 
+ is.na(x) <- value
+ }
+ \arguments{
+-  \item{x}{an \R object to be tested: the default method handles atomic
+-    vectors, lists and pairlists.}
++  \item{x}{an \R object to be tested: the default method for
++    \code{is.na} handles atomic vectors, lists and pairlists: that for
++    \code{anyNA} also handles \code{NULL}.}
+   \item{value}{a suitable index vector for use with \code{x}.}
+ }
+ %% Next par on character NAs taken from R-lang.texi:
+@@ -45,34 +52,46 @@ is.na(x) <- value
+   string \code{NA} should use \code{NA_character_} rather than
+   \code{"NA"}, or set elements to \code{NA} using \code{is.na<-}.
+ 
+-  \code{is.na(x)} works elementwise when \code{x} is a
+-  \code{\link{list}}.  It is generic: you can write methods to handle
+-  specific classes of objects, see \link{InternalMethods}.  A complex
+-  value is regarded as \code{NA} if either its real or imaginary part is
+-  \code{NA} or \code{NaN}.
+-
++  \code{is.na} and \code{anyNA} are generic: you can write
++  methods to handle specific classes of objects, see
++  \link{InternalMethods}.
++  
+   Function \code{is.na<-} may provide a safer way to set missingness.
+   It behaves differently for factors, for example.
+   
+-  Computations using \code{NA} will normally result in \code{NA}: a
++  Numerical computations using \code{NA} will normally result in \code{NA}: a
+   possible exception is where \code{\link{NaN}} is also involved, in
+-  which case either might result.
++  which case either might result.  Logical computations treat \code{NA}
++  as a missing \code{TRUE/FALSE} value, and so may return \code{TRUE} or 
++  \code{FALSE} if the expression does not depend on the \code{NA} operand.
++  
++  The default method for \code{anyNA} handles atomic vectors without a
++  class and \code{NULL}.  It calls \code{any(is.na(x)} on objects with
++  classes and on lists and pairlists.
+ }
+ \value{
+   The default method for \code{is.na} applied to an atomic vector
+   returns a logical vector of the same length as its argument \code{x},
+   containing \code{TRUE} for those elements marked \code{NA} or, for
+-  numeric or complex vectors, \code{\link{NaN}} (!) and \code{FALSE}
+-  otherwise.  \code{dim}, \code{dimnames} and \code{names} attributes
+-  are preserved.
+-
+-  The default method also works for lists and pairlists: the result for an
+-  element is false unless that element is a length-one atomic vector and
+-  the single element of that vector is regarded as \code{NA} or \code{NaN}.
+-
+-  The method \code{is.na.data.frame} returns a logical matrix with the
+-  same dimensions as the data frame, and with dimnames taken from the
+-  row and column names of the data frame.
++  numeric or complex vectors, \code{\link{NaN}}, and \code{FALSE}
++  otherwise. (A complex value is regarded as \code{NA} if either its
++  real or imaginary part is \code{NA} or \code{\link{NaN}}.)
++  \code{dim}, \code{dimnames} and \code{names} attributes are copied to
++  the result.
++
++  The default methods also work for lists and pairlists:\cr
++  For \code{is.na}, elementwise the result is false unless that element
++  is a length-one atomic vector and the single element of that vector is
++  regarded as \code{NA} or \code{NaN} (note that any \code{is.na}
++  method for the class of the element is ignored).\cr
++  For these types \code{anyNA} calls \code{is.na}.
++
++  The data frame method for \code{is.na} returns a logical matrix
++  with the same dimensions as the data frame, and with dimnames taken
++  from the row and column names of the data frame.
++  
++  \code{anyNA(NULL)} is false: \code{is.na(NULL)} is \code{logical(0)}
++  with a warning.
+ }
+ \references{
+   Becker, R. A., Chambers, J. M. and Wilks, A. R. (1988)
+@@ -97,6 +116,29 @@ is.na(paste(c(1, NA))) #> FALSE FALSE
+ (xx <- c(0:4))
+ is.na(xx) <- c(2, 4)
+ xx                     #> 0 NA  2 NA  4
++anyNA(xx) # TRUE
++
++# Some logical operations do not return NA
++c(TRUE, FALSE) & NA
++c(TRUE, FALSE) | NA
++
++\donttest{
++## Measure speed difference in a favourable case:
++## the difference depends on the platform, on most ca 3x.
++x <- 1:10000; x[5000] <- NaN  # coerces x to be double
++if(require("microbenchmark")) { # does not work reliably on all platforms
++  print(microbenchmark(any(is.na(x)), anyNA(x)))
++} else {
++  nSim <- 2^13
++  print(rbind(is.na = system.time(replicate(nSim, any(is.na(x)))),
++              anyNA = system.time(replicate(nSim, anyNA(x)))))
++}
++}
++
++## ... lists, and hence data frames, too:
++dN <- dd <- USJudgeRatings; dN[3,6] <- NA
++anyNA(dd) # FALSE
++anyNA(dN) # TRUE
+ }
+ \keyword{NA}
+ \keyword{logic}
+--- src/library/base/man/numeric_version.Rd.orig	2020-02-22 09:17:37.739624896 -0800
++++ src/library/base/man/numeric_version.Rd	2020-02-22 09:20:30.658643795 -0800
+@@ -19,6 +19,7 @@
+ \alias{[[<-.numeric_version}
+ \alias{Ops.numeric_version}
+ \alias{Summary.numeric_version}
++\alias{anyNA.numeric_version}
+ \alias{as.character.numeric_version}
+ \alias{as.data.frame.numeric_version}
+ \alias{as.list.numeric_version}
+@@ -96,5 +97,9 @@ x[[2, 3]] <- 0   # zero the patchlevel
+ x[[c(2, 3)]] <- 0 # same
+ x
+ x[[3]] <- "2.2.3"; x
++x <- c(x, package_version("0.0"))
++is.na(x)[4] <- TRUE
++stopifnot(identical(is.na(x), c(rep(FALSE,3), TRUE)),
++	  anyNA(x))
+ }
+ \keyword{utilities}
+--- src/library/base/R/datetime.R.orig	2020-02-22 09:35:07.210158094 -0800
++++ src/library/base/R/datetime.R	2020-02-22 09:35:08.710176835 -0800
+@@ -398,6 +398,7 @@ as.list.POSIXct <- function(x, ...)
+ }
+ 
+ is.na.POSIXlt <- function(x) is.na(as.POSIXct(x))
++anyNA.POSIXlt <- function(x) anyNA(as.POSIXct(x))
+ 
+ ## <FIXME> check the argument validity
+ ## This is documented to remove the timezone
+--- src/library/base/R/version.R.orig	2020-02-22 09:38:19.168505452 -0800
++++ src/library/base/R/version.R	2020-02-22 09:38:41.109773720 -0800
+@@ -311,6 +311,9 @@ function(x, ...)
+ is.na.numeric_version <-
+ function(x)
+     is.na(.encode_numeric_version(x))
++anyNA.numeric_version <-
++function(x)
++    anyNA(.encode_numeric_version(x))
+ 
+ print.numeric_version <-
+ function(x, ...)
+--- src/main/coerce.c.orig	2020-02-22 09:59:15.928296145 -0800
++++ src/main/coerce.c	2020-02-22 09:59:36.492550801 -0800
+@@ -1997,6 +1997,83 @@ SEXP attribute_hidden do_isna(SEXP call,
+     return ans;
+ }
+ 
++// Check if x has missing values; the anyNA.default() method
++static Rboolean anyNA(SEXP x, SEXP env)
++/* Original code:
++   Copyright 2012 Google Inc. All Rights Reserved.
++   Author: Tim Hesterberg <rocket@google.com>
++   Distributed under GPL 2 or later
++*/
++{
++    SEXPTYPE xT = TYPEOF(x);
++    if (OBJECT(x) || xT == VECSXP || xT == LISTSXP) {
++	SEXP e0 = PROTECT(lang2(install("is.na"), x));
++	SEXP e = PROTECT(lang2(install("any"), e0));
++	SEXP res = PROTECT(eval(e, env));
++	int ans = asLogical(res);
++	UNPROTECT(3);
++	return ans == 1; // so NA answer is false.
++    }
++
++    R_xlen_t i, n = xlength(x);
++    switch (xT) {
++    case REALSXP:
++    {
++	double *xD = REAL(x);
++	for (i = 0; i < n; i++)
++	    if (ISNAN(xD[i])) return TRUE;
++	break;
++    }
++    case INTSXP:
++    {
++	int *xI = INTEGER(x);
++	for (i = 0; i < n; i++)
++	    if (xI[i] == NA_INTEGER) return TRUE;
++	break;
++    }
++    case LGLSXP:
++    {
++	int *xI = LOGICAL(x);
++	for (i = 0; i < n; i++)
++	    if (xI[i] == NA_LOGICAL) return TRUE;
++	break;
++    }
++    case CPLXSXP:
++    {
++	Rcomplex *xC = COMPLEX(x);
++	for (i = 0; i < n; i++)
++	    if (ISNAN(xC[i].r) || ISNAN(xC[i].i)) return TRUE;
++	break;
++    }
++    case STRSXP:
++	for (i = 0; i < n; i++)
++	    if (STRING_ELT(x, i) == NA_STRING) return TRUE;
++	break;
++    case RAWSXP: /* no such thing as a raw NA:  is.na(.) gives FALSE always */
++	return FALSE;
++    case NILSXP: // is.na() gives a warning..., but we do not.
++	return FALSE;
++
++    default:
++	error("anyNA() applied to non-(list or vector) of type '%s'",
++	      type2char(TYPEOF(x)));
++    }
++    return FALSE;
++} // anyNA()
++
++SEXP attribute_hidden do_anyNA(SEXP call, SEXP op, SEXP args, SEXP rho)
++{
++    checkArity(op, args);
++    check1arg(args, call, "x");
++
++    SEXP ans;
++    if (DispatchOrEval(call, op, "anyNA", args, rho, &ans, 0, 1))
++	return(ans);
++    // else
++    return ScalarLogical(anyNA(CAR(args), rho));
++}
++
++
+ SEXP attribute_hidden do_isnan(SEXP call, SEXP op, SEXP args, SEXP rho)
+ {
+     SEXP ans, dims, names, x;
+--- src/main/names.c.orig	2020-02-22 09:40:54.931417556 -0800
++++ src/main/names.c	2020-02-22 09:41:51.786124744 -0800
+@@ -240,6 +240,7 @@ attribute_hidden FUNTAB R_FunTab[] =
+ {"duplicated",	do_duplicated,	0,	11,	3,	{PP_FUNCALL, PREC_FN,	0}},
+ {"unique",	do_duplicated,	1,	11,	3,	{PP_FUNCALL, PREC_FN,	0}},
+ {"anyDuplicated",do_duplicated,	2,	11,	3,	{PP_FUNCALL, PREC_FN,	0}},
++{"anyNA",	do_anyNA,	0,	1,	1,	{PP_FUNCALL, PREC_FN,	0}},
+ {"which",	do_which,	0,	11,	1,	{PP_FUNCALL, PREC_FN,	0}},
+ {"which.min",	do_first_min,	0,	11,	1,	{PP_FUNCALL, PREC_FN,	0}},
+ {"pmin",	do_pmin,	0,	11,	-1,	{PP_FUNCALL, PREC_FN,	0}},
+--- tests/reg-examples1.R.orig	2020-02-22 09:47:28.646393803 -0800
++++ tests/reg-examples1.R	2020-02-22 09:47:47.878637780 -0800
+@@ -31,6 +31,17 @@ example(tempfile)
+ example(weekdays)
+ library(help="splines")
+ 
++## for example(NA)
++if(require("microbenchmark")) {
++  x <- c(NaN, 1:10000)
++  print(microbenchmark(any(is.na(x)), anyNA(x)))
++} else { ## much less accurate
++  x <- c(NaN, 1e6)
++  nSim <- 2^13
++  print(rbind(is.na = system.time(replicate(nSim, any(is.na(x)))),
++              anyNA = system.time(replicate(nSim, anyNA(x)))))
++}
++
+ ## utils
+ example(news)
+ example(packageDescription)

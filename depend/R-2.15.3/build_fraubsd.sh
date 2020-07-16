@@ -3,9 +3,17 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script to build R and install it to package sandbox $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/R-2.15.3/build_fraubsd.sh 2019-11-19 23:13:01 -0800 freebsdfrau $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/R-2.15.3/build_fraubsd.sh 2020-07-16 16:44:53 -0700 freebsdfrau $
 #
+############################################################ TOOLCHAIN
+
+case "$( cat /etc/redhat-release )" in
+*" 6."*)
+	RHEL6=1
+	. /opt/rh/devtoolset-2/enable || exit ;;
+esac
+
 ############################################################ GLOBALS
 
 #
@@ -61,6 +69,17 @@ done
 [ -e configure ] || ./update_fraubsd.sh
 
 #
+# Patch software
+#
+if [ ! -e .patch_done ]; then
+	for file in patch/*.patch; do
+		[ -e "$file" ] || continue
+		eval2 patch -b -p0 -N \< $file
+	done
+	eval2 touch .patch_done
+fi
+
+#
 # Configure options
 #
 [ -e Makefile ] || eval2 ./configure \
@@ -78,8 +97,8 @@ eval2 make
 #
 # Install software to package sandbox
 #
-[ -e sandbox ] || eval2 mkdir -p sandbox
-eval2 make DESTDIR=$PWD/sandbox install
+[ -e install ] || eval2 mkdir -p install
+eval2 make DESTDIR=$PWD/install install
 eval2 : SUCCESS
 
 ################################################################################

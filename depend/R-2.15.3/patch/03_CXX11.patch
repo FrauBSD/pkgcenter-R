@@ -1,0 +1,665 @@
+--- Makefile.in.orig	2020-02-21 15:06:55.389076518 -0800
++++ Makefile.in	2020-02-21 15:07:05.685224876 -0800
+@@ -36,6 +36,7 @@ ACINCLUDE_DEPENDENCIES = \
+ 	m4/cairo.m4 \
+ 	m4/clibs.m4 \
+ 	m4/codeset.m4 \
++	m4/cxx_11.m4 \
+ 	m4/gettext.m4 m4/gettext-lib.m4 \
+ 	m4/java.m4 \
+ 	m4/libtool.m4 m4/ltoptions.m4 m4/ltversion.m4 m4/ltsugar.m4 m4/lt~obsolete.m4 \
+--- config.site.orig	2020-02-21 15:02:59.143751935 -0800
++++ config.site	2020-02-21 15:03:01.938789252 -0800
+@@ -237,3 +237,22 @@
+ ## This is be default created from libraries added to LIBS.
+ ## Allow user to override.
+ ## R_LD_LIBRARY_PATH=
++
++## C++11 compiler, optional for use in packages.
++## Introduced in R 3.1.0
++## The command which runs the C++11 compiler: defaults to $(CXX), but
++## empty if that (plus standard) cannot compile the tested C++11 code.
++## CXX1X=
++
++## The 'standard' for the C++11 compilier, which is invoked as
++## $(CXX1X) $(CXX1XSTD) for both compiling and linking DSOs/DLLs.  
++## '-std=c++11' and '-std=c++0x' are tried in turn by configure.
++## '-std=gnu++11' is another possibility.
++## Experimental support such as '-std=c++1y' could be used.
++## CXX1XSTD=
++
++## Analogues for the C++11 compiler: default to the settings for C++
++## CXX1XFLAGS=
++## CXX1XPICFLAGS=
++## SHLIB_CXXIXLD=
++## SHLIB_CXXiXLDFLAGS=
+--- configure.orig	2020-02-21 16:03:41.027436980 -0800
++++ configure	2020-02-21 16:20:09.944696841 -0800
+@@ -899,6 +899,13 @@ RMATH_HAVE_EXPM1
+ ALLOCA
+ R_OPENMP_FFLAGS
+ R_OPENMP_CFLAGS
++SHLIB_CXX1XLDFLAGS
++SHLIB_CXX1XLD
++CXX1XPICFLAGS
++CXX1XFLAGS
++CXX1XSTD
++CXX1X
++HAVE_CXX11
+ FW_VERSION
+ LAPACK_LDFLAGS
+ RLAPACK_LDFLAGS
+@@ -1227,6 +1234,12 @@ CCC
+ CXXCPP
+ OBJC
+ OBJCFLAGS
++CXX1X
++CXX1XSTD
++CXX1XFLAGS
++CXX1XPICFLAGS
++SHLIB_CXX1XLD
++SHLIB_CXX1XLDFLAGS
+ XMKMF
+ FC
+ FCFLAGS'
+@@ -1992,6 +2005,18 @@ Some influential environment variables:
+   CXXCPP      C++ preprocessor
+   OBJC        Objective C compiler command
+   OBJCFLAGS   Objective C compiler flags
++  CXX1X       C++11 compiler command
++  CXX1XSTD    special flag for compiling and for linking C++11 code, e.g.
++              -std=c++11
++  CXX1XFLAGS  C++11 compiler flags
++  CXX1XPICFLAGS
++              special flags for compiling C++11 code to be turned into a
++              shared object
++  SHLIB_CXX1XLD
++              command for linking shared objects which contain object files
++              from the C++11 compiler
++  SHLIB_CXX1XLDFLAGS
++              special flags used by SHLIB_CXX1XLD
+   XMKMF       Path to xmkmf, Makefile generator for X Window System
+   FC          Fortran compiler command
+   FCFLAGS     Fortran compiler flags
+@@ -26610,6 +26635,178 @@ fi
+ 
+ 
+ 
++## C++11 and later
++r_save_CXX="${CXX}"
++r_save_CXXFLAGS="${CXXFLAGS}"
++
++: ${CXX1X=${CXX}}
++: ${CXX1XFLAGS=${CXXFLAGS}}
++: ${CXX1XPICFLAGS=${CXXPICFLAGS}}
++
++CXX="${CXX1X} ${CXX1XSTD}"
++CXXFLAGS="${CXX1XFLAGS} ${CXX1XPICFLAGS}"
++ac_ext=cpp
++ac_cpp='$CXXCPP $CPPFLAGS'
++ac_compile='$CXX -c $CXXFLAGS $CPPFLAGS conftest.$ac_ext >&5'
++ac_link='$CXX -o conftest$ac_exeext $CXXFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
++ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
++    ax_cxx_compile_cxx11_required=falsednl
++  ac_ext=cpp
++ac_cpp='$CXXCPP $CPPFLAGS'
++ac_compile='$CXX -c $CXXFLAGS $CPPFLAGS conftest.$ac_ext >&5'
++ac_link='$CXX -o conftest$ac_exeext $CXXFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
++ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
++  ac_success=no
++  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether $CXX supports C++11 features by default" >&5
++$as_echo_n "checking whether $CXX supports C++11 features by default... " >&6; }
++if ${ax_cv_cxx_compile_cxx11+:} false; then :
++  $as_echo_n "(cached) " >&6
++else
++  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++  template <typename T>
++    struct check
++    {
++      static_assert(sizeof(int) <= sizeof(T), "not big enough");
++    };
++
++    typedef check<check<bool>> right_angle_brackets;
++
++    int a;
++    decltype(a) b;
++
++    typedef check<int> check_type;
++    check_type c;
++    check_type&& cr = static_cast<check_type&&>(c);
++
++    auto d = a;
++
++_ACEOF
++if ac_fn_cxx_try_compile "$LINENO"; then :
++  ax_cv_cxx_compile_cxx11=yes
++else
++  ax_cv_cxx_compile_cxx11=no
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
++fi
++{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_cxx_compile_cxx11" >&5
++$as_echo "$ax_cv_cxx_compile_cxx11" >&6; }
++  if test x$ax_cv_cxx_compile_cxx11 = xyes; then
++    ac_success=yes
++  fi
++
++
++
++    if test x$ac_success = xno; then
++    for switch in -std=c++11 -std=c++0x; do
++      cachevar=`$as_echo "ax_cv_cxx_compile_cxx11_$switch" | $as_tr_sh`
++      { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether $CXX supports C++11 features with $switch" >&5
++$as_echo_n "checking whether $CXX supports C++11 features with $switch... " >&6; }
++if eval \${$cachevar+:} false; then :
++  $as_echo_n "(cached) " >&6
++else
++  ac_save_CXXFLAGS="$CXXFLAGS"
++         CXXFLAGS="$CXXFLAGS $switch"
++         cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++  template <typename T>
++    struct check
++    {
++      static_assert(sizeof(int) <= sizeof(T), "not big enough");
++    };
++
++    typedef check<check<bool>> right_angle_brackets;
++
++    int a;
++    decltype(a) b;
++
++    typedef check<int> check_type;
++    check_type c;
++    check_type&& cr = static_cast<check_type&&>(c);
++
++    auto d = a;
++
++_ACEOF
++if ac_fn_cxx_try_compile "$LINENO"; then :
++  eval $cachevar=yes
++else
++  eval $cachevar=no
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
++         CXXFLAGS="$ac_save_CXXFLAGS"
++fi
++eval ac_res=\$$cachevar
++	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
++$as_echo "$ac_res" >&6; }
++      if eval test x\$$cachevar = xyes; then
++        CXXFLAGS="$CXXFLAGS $switch"
++        ac_success=yes
++        break
++      fi
++    done
++  fi
++  ac_ext=cpp
++ac_cpp='$CXXCPP $CPPFLAGS'
++ac_compile='$CXX -c $CXXFLAGS $CPPFLAGS conftest.$ac_ext >&5'
++ac_link='$CXX -o conftest$ac_exeext $CXXFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
++ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
++
++  if test x$ax_cxx_compile_cxx11_required = xtrue; then
++    if test x$ac_success = xno; then
++      as_fn_error $? "*** A compiler with support for C++11 language features is required." "$LINENO" 5
++    fi
++  else
++    if test x$ac_success = xno; then
++      HAVE_CXX11=0
++      { $as_echo "$as_me:${as_lineno-$LINENO}: No compiler with C++11 support was found" >&5
++$as_echo "$as_me: No compiler with C++11 support was found" >&6;}
++    else
++      HAVE_CXX11=1
++
++$as_echo "#define HAVE_CXX11 1" >>confdefs.h
++
++    fi
++
++
++  fi
++
++ac_ext=c
++ac_cpp='$CPP $CPPFLAGS'
++ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
++ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
++ac_compiler_gnu=$ac_cv_c_compiler_gnu
++CXX="${r_save_CXX}"
++CXXFLAGS="${r_save_CXXFLAGS}"
++if test "${HAVE_CXX11}" = "1"; then
++  CXX1XSTD="${CXX1XSTD} ${switch}"
++else
++  CXX1X=""
++  CXX1XSTD=""
++  CXX1XFLAGS=""
++  CXX1XPICFLAGS=""
++fi
++
++
++
++
++
++if test -z "${SHLIB_CXX1XLD}"; then
++  SHLIB_CXX1XLD="\$(CXX1X) \$(CXX1XSTD)"
++fi
++
++: ${SHLIB_CXX1XLDFLAGS=${SHLIB_CXXLDFLAGS}}
++
++
++
++
++
++
++
++
++
++
+ ### OpenMP.
+ 
+ ## The basic checking is performed via AC_OPENMP added in Autoconf 2.62,
+@@ -46173,6 +46370,7 @@ fi
+ ## </NOTE>
+ r_c_compiler="${CC} ${R_XTRA_CFLAGS} ${CFLAGS}"
+ r_cxx_compiler="${CXX} ${R_XTRA_CXXFLAGS} ${CXXFLAGS}"
++r_cxx1x_compiler="${CXX1X} ${CXX1XSTD} ${CXX1XFLAGS}"
+ r_f77_compiler="${F77} ${R_XTRA_FFLAGS} ${FFLAGS}"
+ r_f95_compiler="${FC} ${FCFLAGS}"
+ r_objc_compiler="${OBJC} ${OBJCFLAGS}"
+--- configure.ac.orig	2020-02-21 15:47:35.928555235 -0800
++++ configure.ac	2020-02-21 15:49:26.520033734 -0800
+@@ -1680,6 +1680,9 @@ AC_SUBST(RLAPACK_LDFLAGS)
+ AC_SUBST(LAPACK_LDFLAGS)
+ AC_SUBST(FW_VERSION)
+ 
++## C++11 and later
++R_CXX1X
++
+ ### OpenMP.
+ 
+ ## The basic checking is performed via AC_OPENMP added in Autoconf 2.62,
+@@ -2642,6 +2645,7 @@ AC_OUTPUT
+ ## </NOTE>
+ r_c_compiler="${CC} ${R_XTRA_CFLAGS} ${CFLAGS}"
+ r_cxx_compiler="${CXX} ${R_XTRA_CXXFLAGS} ${CXXFLAGS}"
++r_cxx1x_compiler="${CXX1X} ${CXX1XSTD} ${CXX1XFLAGS}"
+ r_f77_compiler="${F77} ${R_XTRA_FFLAGS} ${FFLAGS}"
+ r_f95_compiler="${FC} ${FCFLAGS}"
+ r_objc_compiler="${OBJC} ${OBJCFLAGS}"
+--- etc/Makeconf.in.orig	2020-02-21 16:03:41.057437369 -0800
++++ etc/Makeconf.in	2020-02-21 16:17:00.888163940 -0800
+@@ -22,6 +22,10 @@ CXX = @CXX@
+ CXXCPP = @CXXCPP@
+ CXXFLAGS = @CXXFLAGS@ $(LTO)
+ CXXPICFLAGS = @CXXPICFLAGS@
++CXX1X = @CXX1X@
++CXX1XFLAGS = @CXX1XFLAGS@
++CXX1XPICFLAGS = @CXX1XPICFLAGS@
++CXX1XSTD = @CXX1XSTD@
+ DYLIB_EXT = @DYLIB_EXT@
+ DYLIB_LD = @DYLIB_LD@
+ DYLIB_LDFLAGS = @DYLIB_LDFLAGS@@BUILD_LTO_TRUE@ $(CFLAGS) $(CPICFLAGS)
+@@ -80,6 +84,8 @@ SHLIB_CFLAGS = @SHLIB_CFLAGS@
+ SHLIB_CXXFLAGS = @SHLIB_CXXFLAGS@
+ SHLIB_CXXLD = @SHLIB_CXXLD@
+ SHLIB_CXXLDFLAGS = @SHLIB_CXXLDFLAGS@
++SHLIB_CXX1XLD = @SHLIB_CXX1XLD@
++SHLIB_CXX1XLDFLAGS = @SHLIB_CXX1XLDFLAGS@
+ SHLIB_EXT = @SHLIB_EXT@
+ SHLIB_FCLD = @SHLIB_FCLD@
+ SHLIB_FCLDFLAGS = @SHLIB_FCLDFLAGS@
+--- m4/Makefile.in.orig	2020-02-21 15:04:42.372150673 -0800
++++ m4/Makefile.in	2020-02-21 15:04:52.203293872 -0800
+@@ -17,6 +17,7 @@ DISTFILES = Makefile.in README \
+ 	cairo.m4 \
+ 	clibs.m4 \
+ 	codeset.m4 \
++	cxx_11.m4 \
+ 	gettext.m4 gettext-lib.m4 \
+ 	java.m4 \
+ 	libtool.m4 ltoptions.m4 ltsugar.m4 ltversion.m4 lt~obsolete.m4 \
+--- m4/R.m4.orig	2020-02-21 15:19:59.447164990 -0800
++++ m4/R.m4	2020-02-21 15:41:53.781972608 -0800
+@@ -3903,6 +3903,58 @@ fi
+ AC_SUBST(R_SYSTEM_ABI)
+ ]) # R_ABI
+ 
++## R_CXX1X
++## -------
++## Support for C++11 and later, for use in packages.
++AC_DEFUN([R_CXX1X],
++[r_save_CXX="${CXX}"
++r_save_CXXFLAGS="${CXXFLAGS}"
++
++: ${CXX1X=${CXX}}
++: ${CXX1XFLAGS=${CXXFLAGS}}
++: ${CXX1XPICFLAGS=${CXXPICFLAGS}}
++
++CXX="${CXX1X} ${CXX1XSTD}"
++CXXFLAGS="${CXX1XFLAGS} ${CXX1XPICFLAGS}"
++AC_LANG_PUSH([C++])dnl
++AX_CXX_COMPILE_STDCXX_11([noext], [optional])
++AC_LANG_POP([C++])dnl Seems the macro does not always get this right
++CXX="${r_save_CXX}"
++CXXFLAGS="${r_save_CXXFLAGS}"
++if test "${HAVE_CXX11}" = "1"; then
++  CXX1XSTD="${CXX1XSTD} ${switch}"
++else
++  CXX1X=""
++  CXX1XSTD=""
++  CXX1XFLAGS=""
++  CXX1XPICFLAGS=""
++fi
++
++AC_SUBST(CXX1X)
++AC_SUBST(CXX1XSTD)
++AC_SUBST(CXX1XFLAGS)
++AC_SUBST(CXX1XPICFLAGS)
++if test -z "${SHLIB_CXX1XLD}"; then
++  SHLIB_CXX1XLD="\$(CXX1X) \$(CXX1XSTD)"
++fi
++AC_SUBST(SHLIB_CXX1XLD)
++: ${SHLIB_CXX1XLDFLAGS=${SHLIB_CXXLDFLAGS}}
++AC_SUBST(SHLIB_CXX1XLDFLAGS)
++
++AC_ARG_VAR([CXX1X], [C++11 compiler command])
++AC_ARG_VAR([CXX1XSTD],
++           [special flag for compiling and for linking C++11 code, e.g. -std=c++11])
++AC_ARG_VAR([CXX1XFLAGS], [C++11 compiler flags])
++AC_ARG_VAR([CXX1XPICFLAGS],
++           [special flags for compiling C++11 code to be turned into a
++            shared object])
++AC_ARG_VAR([SHLIB_CXX1XLD],
++           [command for linking shared objects which contain object
++            files from the C++11 compiler])
++AC_ARG_VAR([SHLIB_CXX1XLDFLAGS], [special flags used by SHLIB_CXX1XLD])
++])# R_CXX1X
++
++
+ ### Local variables: ***
+ ### mode: outline-minor ***
+ ### outline-regexp: "### [*]+" ***
+--- src/gnuwin32/fixed/etc/Makeconf.orig	2020-02-21 15:19:59.595167062 -0800
++++ src/gnuwin32/fixed/etc/Makeconf	2020-02-21 16:00:56.919249865 -0800
+@@ -72,6 +72,10 @@ CXX = $(BINPREF)g++ $(M_ARCH)
+ CXXCPP = $(CXX) -E
+ CXXFLAGS = -O2 -Wall $(DEBUGFLAG) @EOPTS@
+ CXXPICFLAGS = 
++CXX1X = $(BINPREF)g++ $(M_ARCH)
++CXX1XFLAGS = -O2 -Wall $(DEBUGFLAG) @EOPTS@
++CXX1XPICFLAGS =
++CXX1XSTD = -std=c++0x
+ DYLIB_EXT = .dll
+ DYLIB_LD = $(DLL)
+ DYLIB_LDFLAGS = -shared
+@@ -131,6 +135,8 @@ SHLIB_CXXFLAGS = 
+ SHLIB_CXXLD = $(CXX)
+ ## ideally -shared -static-libstdc++, but not for gcc 4.2.1
+ SHLIB_CXXLDFLAGS = -shared
++SHLIB_CXX1XLD = $(CXX1X)
++SHLIB_CXX1XLDFLAGS = -shared
+ SHLIB_EXT = .dll
+ SHLIB_FCLD = $(FC)
+ ## ideally -shared -static-libgfortran, but not for gcc 4.2.1
+--- src/include/config.h.in.orig	2020-02-21 15:10:21.675025220 -0800
++++ src/include/config.h.in	2020-02-21 15:10:34.731211210 -0800
+@@ -144,6 +144,9 @@
+ /* Define to 1 if you have the `ctanh' function. */
+ #undef HAVE_CTANH
+ 
++/* define if the compiler supports basic C++11 syntax */
++#undef HAVE_CXX11
++
+ /* Define if the GNU dcgettext() function is already present or preinstalled.
+    */
+ #undef HAVE_DCGETTEXT
+--- src/library/tools/R/install.R.orig	2020-02-21 14:55:26.591639830 -0800
++++ src/library/tools/R/install.R	2020-02-21 15:00:05.482414745 -0800
+@@ -283,6 +283,19 @@
+         ## Figure out whether this is a source or binary package.
+         is_source_package <- is.na(desc["Built"])
+ 
++        if (is_source_package) {
++            ## Find out if C++11 is requested in DESCRIPTION file
++            sys_requires <- desc["SystemRequirements"]
++            if (!is.na(sys_requires)) {
++                sys_requires <- unlist(strsplit(sys_requires, ","))
++                if(any(grepl("^[[:space:]]*C[+][+]11[[:space:]]*$",
++                             sys_requires, ignore.case=TRUE))) {
++                    Sys.setenv("R_PKG_CXX_STD"="CXX11")
++                    on.exit(Sys.unsetenv("R_PKG_CXX_STD"))
++                }
++            }
++        }
++
+         if (!is_first_package) cat("\n")
+ 
+         if (is_source_package)
+@@ -1651,6 +1664,7 @@
+     with_f77 <- FALSE
+     with_f9x <- FALSE
+     with_objc <- FALSE
++    use_cxx1x <- FALSE
+     pkg_libs <- character()
+     clean <- FALSE
+     preclean <- FALSE
+@@ -1748,11 +1762,39 @@
+         lines <- readLines("Makevars.win", warn = FALSE)
+         if (length(grep("^OBJECTS *=", lines, perl=TRUE, useBytes=TRUE)))
+             makeobjs <- ""
++        if (length(ll <- grep("^CXX_STD *=", lines, perl = TRUE,
++                              value = TRUE, useBytes = TRUE))) {
++            cxxstd <- gsub("^CXX_STD *=", "", ll)
++            cxxstd <- gsub(" *", "", cxxstd)
++            if (cxxstd == "CXX11") {
++                use_cxx1x <- TRUE
++            }
++        }
+     } else if (file.exists("Makevars")) {
+         makefiles <- c("Makevars", makefiles)
+         lines <- readLines("Makevars", warn = FALSE)
+         if (length(grep("^OBJECTS *=", lines, perl=TRUE, useBytes=TRUE)))
+             makeobjs <- ""
++        if (length(ll <- grep("^CXX_STD *=", lines, perl = TRUE,
++                              value = TRUE, useBytes = TRUE))) {
++            cxxstd <- gsub("^CXX_STD *=", "", ll)
++            cxxstd <- gsub(" *", "", cxxstd)
++            if (cxxstd == "CXX11") {
++                use_cxx1x <- TRUE
++            }
++        }
++    }
++    if (!use_cxx1x) {
++        val <- Sys.getenv("USE_CXX1X", NA)
++        if(!is.na(val)) {
++            use_cxx1x <- TRUE
++        }
++        else {
++            val <- Sys.getenv("R_PKG_CXX_STD")
++            if (val == "CXX11") {
++                use_cxx1x <- TRUE
++            }
++        }
+     }
+ 
+     makeargs <- paste0("SHLIB=", shQuote(shlib))
+@@ -1760,8 +1802,15 @@
+         makeargs <- c("SHLIB_LDFLAGS='$(SHLIB_FCLDFLAGS)'",
+                       "SHLIB_LD='$(SHLIB_FCLD)'", makeargs)
+     } else if (with_cxx) {
+-        makeargs <- c("SHLIB_LDFLAGS='$(SHLIB_CXXLDFLAGS)'",
+-                      "SHLIB_LD='$(SHLIB_CXXLD)'", makeargs)
++        makeargs <- if (use_cxx1x)
++            c("CXX='$(CXX1X) $(CXX1XSTD)'",
++              "CXXFLAGS='$(CXX1XFLAGS)'",
++              "CXXPICFLAGS='$(CXX1XPICFLAGS)'",
++              "SHLIB_LDFLAGS='$(SHLIB_CXX1XLDFLAGS)'",
++              "SHLIB_LD='$(SHLIB_CXX1XLD)'", makeargs)
++        else
++            c("SHLIB_LDFLAGS='$(SHLIB_CXXLDFLAGS)'",
++              "SHLIB_LD='$(SHLIB_CXXLD)'", makeargs)
+     }
+     if (with_objc) shlib_libadd <- c(shlib_libadd, "$(OBJC_LIBS)")
+     if (with_f77) shlib_libadd <- c(shlib_libadd, "$(FLIBS)")
+--- src/scripts/config.orig	2020-02-21 15:56:46.686908772 -0800
++++ src/scripts/config	2020-02-21 15:58:20.952168071 -0800
+@@ -56,6 +56,12 @@ Variables:
+   CXXFLAGS      C++ compiler flags
+   CXXPICFLAGS   special flags for compiling C++ code to be turned into a
+ 		shared library
++  CXX1X         C++ compiler command for C++11 code
++  CXX1XSTD      flag used to enable C++11 support
++  CXX1XFLAGS    C++11 compiler flags
++  CXX1XXPICFLAGS
++                special flags for compiling C++11 code to be turned into
++                a shared library
+   DYLIB_EXT	file extension (including '.') for dynamic libraries
+   DYLIB_LD      command for linking dynamic libraries which contain
+ 		object files from a C or Fortran compiler only
+@@ -192,7 +198,7 @@ while test -n "${1}"; do
+ done
+ 
+ ok_c_vars="CC CFLAGS CPICFLAGS CPP CPPFLAGS"
+-ok_cxx_vars="CXX CXXCPP CXXFLAGS CXXPICFLAGS"
++ok_cxx_vars="CXX CXXCPP CXXFLAGS CXXPICFLAGS CXX1X CXX1XSTD CXX1XFLAGS CXX1XPICFLAGS"
+ ok_dylib_vars="DYLIB_EXT DYLIB_LD DYLIB_LDFLAGS"
+ ok_objc_vars="OBJC OBJCFLAGS"
+ ok_java_vars="JAVA JAVAC JAVAH JAR JAVA_HOME JAVA_LIBS JAVA_CPPFLAGS"
+--- /dev/null	2020-02-10 08:57:11.114456402 -0800
++++ m4/cxx_11.m4	2020-02-22 09:24:58.882814195 -0800
+@@ -0,0 +1,133 @@
++# ============================================================================
++#  http://www.gnu.org/software/autoconf-archive/ax_cxx_compile_stdcxx_11.html
++# ============================================================================
++#
++# SYNOPSIS
++#
++#   AX_CXX_COMPILE_STDCXX_11([ext|noext],[mandatory|optional])
++#
++# DESCRIPTION
++#
++#   Check for baseline language coverage in the compiler for the C++11
++#   standard; if necessary, add switches to CXXFLAGS to enable support.
++#
++#   The first argument, if specified, indicates whether you insist on an
++#   extended mode (e.g. -std=gnu++11) or a strict conformance mode (e.g.
++#   -std=c++11).  If neither is specified, you get whatever works, with
++#   preference for an extended mode.
++#
++#   The second argument, if specified 'mandatory' or if left unspecified,
++#   indicates that baseline C++11 support is required and that the macro
++#   should error out if no mode with that support is found.  If specified
++#   'optional', then configuration proceeds regardless, after defining
++#   HAVE_CXX11 if and only if a supporting mode is found.
++#
++# LICENSE
++#
++#   Copyright (c) 2008 Benjamin Kosnik <bkoz@redhat.com>
++#   Copyright (c) 2012 Zack Weinberg <zackw@panix.com>
++#   Copyright (c) 2013 Roy Stogner <roystgnr@ices.utexas.edu>
++#
++#   Copying and distribution of this file, with or without modification, are
++#   permitted in any medium without royalty provided the copyright notice
++#   and this notice are preserved. This file is offered as-is, without any
++#   warranty.
++
++dnl #serial 3
++
++m4_define([_AX_CXX_COMPILE_STDCXX_11_testbody], [
++  template <typename T>
++    struct check
++    {
++      static_assert(sizeof(int) <= sizeof(T), "not big enough");
++    };
++
++    typedef check<check<bool>> right_angle_brackets;
++
++    int a;
++    decltype(a) b;
++
++    typedef check<int> check_type;
++    check_type c;
++    check_type&& cr = static_cast<check_type&&>(c);
++
++    auto d = a;
++])
++
++AC_DEFUN([AX_CXX_COMPILE_STDCXX_11], [dnl
++  m4_if([$1], [], [],
++        [$1], [ext], [],
++        [$1], [noext], [],
++        [m4_fatal([invalid argument `$1' to AX_CXX_COMPILE_STDCXX_11])])dnl
++  m4_if([$2], [], [ax_cxx_compile_cxx11_required=true],
++        [$2], [mandatory], [ax_cxx_compile_cxx11_required=true],
++        [$2], [optional], [ax_cxx_compile_cxx11_required=false],
++        [m4_fatal([invalid second argument `$2' to AX_CXX_COMPILE_STDCXX_11])])dnl
++  AC_LANG_PUSH([C++])dnl
++  ac_success=no
++  AC_CACHE_CHECK(whether $CXX supports C++11 features by default,
++  ax_cv_cxx_compile_cxx11,
++  [AC_COMPILE_IFELSE([AC_LANG_SOURCE([_AX_CXX_COMPILE_STDCXX_11_testbody])],
++    [ax_cv_cxx_compile_cxx11=yes],
++    [ax_cv_cxx_compile_cxx11=no])])
++  if test x$ax_cv_cxx_compile_cxx11 = xyes; then
++    ac_success=yes
++  fi
++
++  m4_if([$1], [noext], [], [dnl
++  if test x$ac_success = xno; then
++    for switch in -std=gnu++11 -std=gnu++0x; do
++      cachevar=AS_TR_SH([ax_cv_cxx_compile_cxx11_$switch])
++      AC_CACHE_CHECK(whether $CXX supports C++11 features with $switch,
++                     $cachevar,
++        [ac_save_CXXFLAGS="$CXXFLAGS"
++         CXXFLAGS="$CXXFLAGS $switch"
++         AC_COMPILE_IFELSE([AC_LANG_SOURCE([_AX_CXX_COMPILE_STDCXX_11_testbody])],
++          [eval $cachevar=yes],
++          [eval $cachevar=no])
++         CXXFLAGS="$ac_save_CXXFLAGS"])
++      if eval test x\$$cachevar = xyes; then
++        CXXFLAGS="$CXXFLAGS $switch"
++        ac_success=yes
++        break
++      fi
++    done
++  fi])
++
++  m4_if([$1], [ext], [], [dnl
++  if test x$ac_success = xno; then
++    for switch in -std=c++11 -std=c++0x; do
++      cachevar=AS_TR_SH([ax_cv_cxx_compile_cxx11_$switch])
++      AC_CACHE_CHECK(whether $CXX supports C++11 features with $switch,
++                     $cachevar,
++        [ac_save_CXXFLAGS="$CXXFLAGS"
++         CXXFLAGS="$CXXFLAGS $switch"
++         AC_COMPILE_IFELSE([AC_LANG_SOURCE([_AX_CXX_COMPILE_STDCXX_11_testbody])],
++          [eval $cachevar=yes],
++          [eval $cachevar=no])
++         CXXFLAGS="$ac_save_CXXFLAGS"])
++      if eval test x\$$cachevar = xyes; then
++        CXXFLAGS="$CXXFLAGS $switch"
++        ac_success=yes
++        break
++      fi
++    done
++  fi])
++  AC_LANG_POP([C++])
++  if test x$ax_cxx_compile_cxx11_required = xtrue; then
++    if test x$ac_success = xno; then
++      AC_MSG_ERROR([*** A compiler with support for C++11 language features is required.])
++    fi
++  else
++    if test x$ac_success = xno; then
++      HAVE_CXX11=0
++      AC_MSG_NOTICE([No compiler with C++11 support was found])
++    else
++      HAVE_CXX11=1
++      AC_DEFINE(HAVE_CXX11,1,
++                [define if the compiler supports basic C++11 syntax])
++    fi
++
++    AC_SUBST(HAVE_CXX11)
++  fi
++])
