@@ -2,8 +2,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script to install R libraries from list file $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/vcr/libexec/play 2019-07-12 14:05:39 -0700 freebsdfrau $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/vcr/libexec/play 2020-07-16 16:40:51 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -42,8 +42,11 @@ FAILURE=1
 #
 # Command-line options
 #
+ALL_INSTALL=	# -a
+BINARY_INSTALL=	# -B
 DESTDIR=	# -d dir
 DRYRUN=		# -n
+NETRC=		# -N
 FORCE=		# -f
 
 ############################################################ I18N
@@ -54,8 +57,11 @@ fmt_no_such_r_interpreter="%s: Kein solcher R interpreter"
 msg_default="Standard"
 msg_destination_directory="Zielverzeichnis."
 msg_dry_run_dont_actually_install_anything="Probelauf. Installieren sie eigentlich nichts."
+msg_enable_netrc_support="Aktivieren Sie die Netrc-Unterstützung."
 msg_fatal="TÖDLICH"
 msg_force_install_even_if_already_installed="Macht. Installieren Sie, auch wenn bereits installiert."
+msg_install_binary_packages="Installieren Sie Binärpakete."
+msg_install_dependencies="Abhängigkeiten installieren."
 msg_missing_file_argument="Fehlendes dateiargument"
 msg_options="Optionen"
 msg_print_help_message="Hilfemeldung an stderr ausgeben und beenden."
@@ -67,21 +73,59 @@ fmt_no_such_r_interpreter="%s: אין מתורגמן מסוג R כזה"
 msg_default="ברירת מחדל"
 msg_destination_directory="ספריית יעד."
 msg_dry_run_dont_actually_install_anything="ריצה יבשה. לא ממש להתקין שום דבר."
+msg_enable_netrc_support="אפשר תמיכה ב- netrc."
 msg_fatal="קטלני"
 msg_force_install_even_if_already_installed="כוח. התקן גם אם מותקן כבר."
+msg_install_binary_packages="התקן חבילות בינאריות."
+msg_install_dependencies="התקן תלות."
 msg_missing_file_argument="ארגומנט קובץ חסר"
 msg_options="אפשרויות"
 msg_print_help_message="הדפס את הודעת העזרה ל stdr ולצאת."
 msg_usage="שימוש"
 msg_warning="אזהרה"
 ;;
+ja_JP.UTF8) # Japanese (Kanji)
+fmt_no_such_r_interpreter="%s：そのようなRインタープリターはありません"
+msg_default="デフォルト"
+msg_destination_directory="宛先ディレクトリ。"
+msg_dry_run_dont_actually_install_anything="ドライラン。 実際には何もインストールしないでください。"
+msg_enable_netrc_support="netrcサポートを有効にします。"
+msg_fatal="致命的"
+msg_force_install_even_if_already_installed="力。 すでにインストールされている場合でもインストールします。"
+msg_install_binary_packages="バイナリパッケージをインストールします。"
+msg_install_dependencies="依存関係をインストールします。"
+msg_missing_file_argument="ファイル引数がありません"
+msg_options="オプション"
+msg_print_help_message="ヘルプメッセージをstderrに出力して終了します。"
+msg_usage="使用法"
+msg_warning="警告"
+;;
+ja|ja_JP|ja_JP.*) # Japanese (Latin)
+fmt_no_such_r_interpreter="%s: Sono yōna R intāpuritā wa arimasen"
+msg_default="Deforuto"
+msg_destination_directory="Atesaki direkutori."
+msg_dry_run_dont_actually_install_anything="Dorairan. Jissai ni wa nani mo insutōru shinaide kudasai."
+msg_enable_netrc_support="netrc sapōto o yūkō ni shimasu."
+msg_fatal="CHIMEI-TEKI"
+msg_force_install_even_if_already_installed="Chikara. Sudeni insutōru sa rete iru baai demo insutōru shimasu."
+msg_install_binary_packages="Bainaripakkēji o insutōru shimasu."
+msg_install_dependencies="Isonkankei o insutōru shimasu."
+msg_missing_file_argument="Fairu hikisū ga arimasen"
+msg_options="Opushon"
+msg_print_help_message="Herupumessēji o stderr ni shutsuryoku shite shūryō shimasu."
+msg_usage="Shiyō-hō"
+msg_warning="KEIKOKU"
+;;
 pl|pl_PL|pl_PL.*) # Polish
 fmt_no_such_r_interpreter="%s: Nie ma takiego tłumacza R"
 msg_default="Domyślna"
 msg_destination_directory="Katalog docelowy."
 msg_dry_run_dont_actually_install_anything="Próba. Nie instaluj niczego."
+msg_enable_netrc_support="Włącz obsługę Netrc."
 msg_fatal="FATALNY"
 msg_force_install_even_if_already_installed="Siła. Zainstaluj, nawet jeśli jest już zainstalowany."
+msg_install_binary_packages="Zainstaluj pakiety binarne."
+msg_install_dependencies="Zainstaluj zależności."
 msg_missing_file_argument="Brakujący argument pliku"
 msg_options="Opcje"
 msg_print_help_message="Wydrukuj komunikat pomocy na stderr i wyjdź."
@@ -93,8 +137,11 @@ fmt_no_such_r_interpreter="%s: Нет такого R переводчика"
 msg_default="По умолчанию"
 msg_destination_directory="Целевой каталог."
 msg_dry_run_dont_actually_install_anything="Пробный прогон. На самом деле ничего не устанавливайте."
+msg_enable_netrc_support="Включить поддержку netrc."
 msg_fatal="ФАТАЛЬНЫЙ"
 msg_force_install_even_if_already_installed="Силы. Установите, даже если он уже установлен."
+msg_install_binary_packages="Установите бинарные пакеты."
+msg_install_dependencies="Установить зависимости."
 msg_missing_file_argument="Отсутствует аргумент файла"
 msg_options="Опции"
 msg_print_help_message="Распечатать справочное сообщение в stderr и выйти."
@@ -106,8 +153,11 @@ fmt_no_such_r_interpreter="%s: Net takogo R perevodchika"
 msg_default="Po umolchaniyu"
 msg_destination_directory="Tselevoy katalog."
 msg_dry_run_dont_actually_install_anything="Probnyy progon. Na samom dele nichego ne ustanavlivayte."
+msg_enable_netrc_support="Vklyuchit' podderzhku netrc."
 msg_fatal="FATAL'NYY"
 msg_force_install_even_if_already_installed="Sily. Ustanovite, dazhe yesli on uzhe ustanovlen."
+msg_install_binary_packages="Ustanovite binarnyye pakety."
+msg_install_dependencies="Ustanovit' zavisimosti."
 msg_missing_file_argument="Otsutstvuyet argument fayla"
 msg_options="Optsii"
 msg_print_help_message="Raspechatat' spravochnoye soobshcheniye v stderr i vyyti."
@@ -119,8 +169,11 @@ fmt_no_such_r_interpreter="%s: 没有这样的R翻译"
 msg_default="默认"
 msg_destination_directory="目标目录。"
 msg_dry_run_dont_actually_install_anything="干运行。 实际上不要安装任何东西。"
+msg_enable_netrc_support="启用netrc支持。"
 msg_fatal="致命"
 msg_force_install_even_if_already_installed="力。 即使已经安装也要安装。"
+msg_install_binary_packages="安装二进制软件包。"
+msg_install_dependencies="安装依赖项。"
 msg_missing_file_argument="缺少文件参数"
 msg_options="选项"
 msg_print_help_message="将帮助消息打印到stderr并退出。"
@@ -132,8 +185,11 @@ fmt_no_such_r_interpreter="%s: Méiyǒu zhèyàng de R fānyì"
 msg_default="Mòrèn"
 msg_destination_directory="Mùbiāo mùlù."
 msg_dry_run_dont_actually_install_anything="Gàn yùnxíng. Shíjì shang bùyào ānzhuāng rènhé dōngxī."
+msg_enable_netrc_support="Qǐyòng netrc zhīchí."
 msg_fatal="ZHÌMÌNG"
 msg_force_install_even_if_already_installed="Lì. Jíshǐ yǐjīng ānzhuāng yě yào ānzhuāng."
+msg_install_binary_packages="Ānzhuāng èrjìnzhì ruǎnjiàn bāo."
+msg_install_dependencies="Ānzhuāng yīlài xiàng."
 msg_missing_file_argument="Quēshǎo wénjiàn cānshù"
 msg_options="Xuǎnxiàng"
 msg_print_help_message="Jiāng bāngzhù xiāoxī dǎyìn dào stderr bìng tuìchū."
@@ -145,8 +201,11 @@ fmt_no_such_r_interpreter="%s: No such R interpreter"
 msg_default="Default"
 msg_destination_directory="Destination directory."
 msg_dry_run_dont_actually_install_anything="Dry run. Don't actually install anything."
+msg_enable_netrc_support="Enable netrc support."
 msg_fatal="FATAL"
 msg_force_install_even_if_already_installed="Force. Install even if already installed."
+msg_install_binary_packages="Install binary packages."
+msg_install_dependencies="Install dependencies."
 msg_missing_file_argument="Missing file argument"
 msg_options="Options"
 msg_print_help_message="Print help message to stderr and exit."
@@ -162,17 +221,21 @@ usage()
 {
 	local optfmt="\t%-9s %s\n"
 	exec >&2
-	printf "$msg_usage: %s %s [-fhn] [-d dir] [--] " "$VCR_PROGRAM" "$pgm"
+	printf "$msg_usage: %s %s [-BfhNn] [-d dir] [--] " \
+		"$VCR_PROGRAM" "$pgm"
 	if [ "$R_INHERITED" ]; then
 		printf "file ...\n"
 	else
 		printf "R file ...\n"
 	fi
 	printf "$msg_options:\n"
+	printf "$optfmt" "-a" "$msg_install_dependencies"
+	printf "$optfmt" "-B" "$msg_install_binary_packages"
 	printf "$optfmt" "-h" "$msg_print_help_message"
 	printf "$optfmt" "-d dir" \
 		"$msg_destination_directory $msg_default \`$VCR_DESTDIR'."
 	printf "$optfmt" "-f" "$msg_force_install_even_if_already_installed"
+	printf "$optfmt" "-N" "$msg_enable_netrc_support"
 	printf "$optfmt" "-n" "$msg_dry_run_dont_actually_install_anything"
 	exit $FAILURE
 }
@@ -211,10 +274,13 @@ set -e # errexit
 #
 # Process command-line options
 #
-while getopts d:fhn flag; do
+while getopts aBd:fhNn flag; do
 	case "$flag" in
+	a) ALL_INSTALL=1 ;;
+	B) BINARY_INSTALL=1 ;;
 	f) FORCE=1 ;;
 	d) DESTDIR="$OPTARG" ;;
+	N) NETRC=1 ;;
 	n) DRYRUN=1 ;;
 	*) usage # NOTREACHED
 	esac
@@ -232,8 +298,9 @@ shift $(( $OPTIND - 1 ))
 if [ "$R_INHERITED" ]; then
 	have "$R" || die "$fmt_no_such_r_interpreter" "$R"
 	for file in "$@"; do
-		$VCR_PROGRAM add ${DRYRUN:+-n} ${FORCE:+-f} \
-			${DESTDIR:+-d "$DESTDIR"} -r "$file"
+		$VCR_PROGRAM add ${ALL_INSTALL:+-a} ${BINARY_INSTALL:+-B} \
+			${DESTDIR:+-d "$DESTDIR"} ${FORCE:+-f} ${NETRC:+-N} \
+			${DRYRUN:+-n} -r "$file"
 	done
 else
 	R="$1"
@@ -245,8 +312,9 @@ else
 		# NOTREACHED
 	fi
 	for file in "$@"; do
-		$VCR_PROGRAM add ${DRYRUN:+-n} ${FORCE:+-f} \
-			${DESTDIR:+-d "$DESTDIR"} -r "$file" -- "$R"
+		$VCR_PROGRAM add ${ALL_INSTALL:+-a} ${BINARY_INSTALL:+-B} \
+			${DESTDIR:+-d "$DESTDIR"} ${FORCE:+-f} ${NETRC:+-N} \
+			${DRYRUN:+-n} -r "$file" -- "$R"
 	done
 fi
 

@@ -2,8 +2,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script to access other scripts in the `libexec/vcr' directory $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/vcr/bin/vcr 2019-07-12 14:05:39 -0700 freebsdfrau $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/vcr/bin/vcr 2020-07-16 16:40:51 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -25,7 +25,7 @@ export VCR_PROGRAM # pgm
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 4.8.3 $'
+VERSION='$Version: 8.9.2 $'
 
 pgm="${0##*/}" # program basename
 progdir="${0%/*}" # program directory
@@ -72,6 +72,22 @@ msg_options="אפשרויות"
 msg_print_help_message="הדפס את הודעת העזרה ל stdr ולצאת."
 msg_print_version_and_exit="הדפס גרסה ויציאה."
 msg_usage="שימוש"
+;;
+ja_JP.UTF8) # Japanese (Kanji)
+msg_commands="コマンド"
+msg_enable_debug_messages="デバッグメッセージを有効にします。 複数回使用できます。"
+msg_options="オプション"
+msg_print_help_message="ヘルプメッセージをstderrに出力して終了します。"
+msg_print_version_and_exit="バージョンを印刷して終了します。"
+msg_usage="使用法"
+;;
+ja|ja_JP|ja_JP.*) # Japanese (Latin)
+msg_commands="Komando"
+msg_enable_debug_messages="Debaggumessēji o yūkō ni shimasu. Fukusū-kai shiyō dekimasu."
+msg_options="Opushon"
+msg_print_help_message="Herupumessēji o stderr ni shutsuryoku shite shūryō shimasu."
+msg_print_version_and_exit="Bājon o insatsu shite shūryō shimasu."
+msg_usage="Shiyō-hō"
 ;;
 pl|pl_PL|pl_PL.*) # Polish
 msg_commands="Polecenia"

@@ -2,8 +2,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script to list R libraries $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/vcr/libexec/ls 2019-07-12 14:05:39 -0700 freebsdfrau $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/vcr/libexec/ls 2020-07-16 16:40:51 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -53,6 +53,7 @@ de|de_DE|de_DE.*) # German
 fmt_no_description_files_found_in="Keine DESCRIPTION-Dateien gefunden in %s"
 msg_default_is="Standard ist"
 msg_options="Optionen"
+msg_print_help_message="Hilfemeldung an stderr ausgeben und beenden."
 msg_quiet_hide_errors="Ruhig. Fehler ausblenden, wenn bibliothek fehlt."
 msg_separator="Separator"
 msg_sort_alphabetically="Alphabetisch statt chronologisch sortieren."
@@ -62,15 +63,37 @@ he|he_IL|he_IL.*) # Hebrew
 fmt_no_description_files_found_in="%s לא נמצאו קובצי DESCRIPTION"
 msg_default_is="ברירת המחדל היא"
 msg_options="אפשרויות"
+msg_print_help_message="הדפס את הודעת העזרה ל stdr ולצאת."
 msg_quiet_hide_errors="שקט. הסתר שגיאות אם הספריה אינה קיימת."
 msg_separator="מפריד."
 msg_sort_alphabetically="מיון לפי סדר אלפביתי במקום כרונולוגי."
 msg_usage="שימוש"
 ;;
+ja_JP.UTF8) # Japanese (Kanji)
+fmt_no_description_files_found_in="%sにDESCRIPTIONファイルが見つかりません"
+msg_default_is="デフォルトは"
+msg_options="オプション"
+msg_print_help_message="ヘルプメッセージをstderrに出力して終了します。"
+msg_quiet_hide_errors="静か。 ライブラリが存在しない場合、エラーを非表示にします。"
+msg_separator="セパレータ。"
+msg_sort_alphabetically="時系列ではなくアルファベット順にソートします。"
+msg_usage="使用法"
+;;
+ja|ja_JP|ja_JP.*) # Japanese (Latin)
+fmt_no_description_files_found_in="%s ni DESCRIPTION fairu ga mitsukarimasen"
+msg_default_is="Deforuto wa"
+msg_options="Opushon"
+msg_print_help_message="Herupumessēji o stderr ni shutsuryoku shite shūryō shimasu."
+msg_quiet_hide_errors="Shizuka. Raiburari ga sonzai shinai baai, erā o hi hyōji ni shimasu."
+msg_separator="Separēta."
+msg_sort_alphabetically="Jikeiretsude wanaku arufabetto jun ni sōto shimasu."
+msg_usage="Shiyō-hō"
+;;
 pl|pl_PL|pl_PL.*) # Polish
 fmt_no_description_files_found_in="Nie znaleziono plików OPIS w %s"
 msg_default_is="Domyślnie"
 msg_options="Opcje"
+msg_print_help_message="Wydrukuj komunikat pomocy na stderr i wyjdź."
 msg_quiet_hide_errors="Cichy. Ukryj błędy, jeśli biblioteka nie istnieje."
 msg_separator="Separator."
 msg_sort_alphabetically="Sortuj alfabetycznie zamiast chronologicznie."
@@ -80,6 +103,7 @@ ru_RU.UTF8) # Russian (Cyrillic)
 fmt_no_description_files_found_in="Файлы DESCRIPTION не найдены в %s"
 msg_default_is="По умолчанию"
 msg_options="Опции"
+msg_print_help_message="Распечатать справочное сообщение в stderr и выйти."
 msg_quiet_hide_errors="Тихо. Скрыть ошибки, если библиотека не существует."
 msg_separator="Разделитель."
 msg_sort_alphabetically="Сортировать по алфавиту, а не по хронологии."
@@ -89,6 +113,7 @@ ru|ru_RU|ru_RU.*) # Russian (Latin)
 fmt_no_description_files_found_in="Fayly DESCRIPTION ne naydeny v %s"
 msg_default_is="Po umolchaniyu"
 msg_options="Optsii"
+msg_print_help_message="Raspechatat' spravochnoye soobshcheniye v stderr i vyyti."
 msg_quiet_hide_errors="Tikho. Skryt' oshibki, yesli biblioteka ne sushchestvuyet."
 msg_separator="Razdelitel'."
 msg_sort_alphabetically="Sortirovat' po alfavitu, a ne po khronologii."
@@ -98,6 +123,7 @@ zh_CN.UTF8) # Chinese (Simplified)
 fmt_no_description_files_found_in="找不到DESCRIPTION文件 %s"
 msg_default_is="默认是"
 msg_options="Xuǎnxiàng"
+msg_print_help_message="将帮助消息打印到stderr并退出。"
 msg_quiet_hide_errors="安静。 如果库不存在，则隐藏错误。"
 msg_separator="分隔器。"
 msg_sort_alphabetically="按字母顺序排序而不是按时间顺序排序。"
@@ -107,6 +133,7 @@ zh|zh_CN|zh_CN.*) # Chinese (Latin)
 fmt_no_description_files_found_in="Zhǎo bù dào xDESCRIPTION wénjiàn %s"
 msg_default_is="Mòrèn shì"
 msg_options="Xuǎnxiàng"
+msg_print_help_message="Jiāng bāngzhù xiāoxī dǎyìn dào stderr bìng tuìchū."
 msg_quiet_hide_errors="Ānjìng. Rúguǒ kù bù cúnzài, zé yǐncáng cuòwù."
 msg_separator="Fēngé qì."
 msg_sort_alphabetically="Àn zìmǔ shùnxù páixù ér bùshì àn shíjiān shùnxù páixù."
@@ -116,6 +143,7 @@ msg_usage="Yòngfǎ"
 fmt_no_description_files_found_in="No DESCRIPTION files found in %s"
 msg_default_is="Default is"
 msg_options="Options"
+msg_print_help_message="Print help message to stderr and exit."
 msg_quiet_hide_errors="Quiet. Hide errors if library does not exist."
 msg_separator="Separator."
 msg_sort_alphabetically="Sort alphabetically instead of chronologically."
@@ -138,8 +166,9 @@ usage()
 {
 	local optfmt="\t%-9s %s\n"
 	exec >&2
-	printf "Usage: %s %s [-qs] [-t sep] [path]\n" "$VCR_PROGRAM" "$pgm"
-	printf "Options:\n"
+	printf "$msg_usage: %s %s [-qs] [-t sep] [path]\n" "$VCR_PROGRAM" "$pgm"
+	printf "$msg_options:\n"
+	printf "$optfmt" "-h" "$msg_print_help_message"
 	printf "$optfmt" "-q" "$msg_quiet_hide_errors"
 	printf "$optfmt" "-s" "$msg_sort_alphabetically"
 	printf "$optfmt" "-t sep" \

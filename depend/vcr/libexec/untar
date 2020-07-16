@@ -1,9 +1,9 @@
 #!/bin/sh
 ############################################################ IDENT(1)
 #
-# $Title: Script to list library differences between two R distributions $
+# $Title: Script to open library archive $
 # $Copyright: 2019-2020 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/vcr/libexec/cmp 2020-07-16 16:40:51 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/vcr/libexec/untar 2020-07-16 16:40:51 -0700 freebsdfrau $
 #
 ############################################################ ENVIRONMENT
 
@@ -33,80 +33,75 @@ SUCCESS=0
 FAILURE=1
 
 #
-# mktemp
+# Command-line options
 #
-MKTEMP_TEMPLATE="$VCR_PROGRAM.$pgm.XXXXXXXX"
+DEST=		# -d dir
 
 ############################################################ I18N
 
 case "${LANG:-$LC_ALL}" in
 de|de_DE|de_DE.*) # German
+msg_destination_directory="Zielverzeichnis."
 msg_options="Optionen"
 msg_print_help_message="Hilfemeldung an stderr ausgeben und beenden."
-msg_unable_to_create_temporary_directory="Temporäres verzeichnis kann nicht erstellt werden"
 msg_usage="Verwendungszweck"
 ;;
 he|he_IL|he_IL.*) # Hebrew
+msg_destination_directory="ספריית יעד."
 msg_options="אפשרויות"
 msg_print_help_message="הדפס את הודעת העזרה ל stdr ולצאת."
-msg_unable_to_create_temporary_directory="לא ניתן ליצור ספריה זמנית"
 msg_usage="שימוש"
 ;;
-ja_JP.UTF8) # Japanes (Kanji)
+ja_JP.UTF8) # Japanese (Kanji)
+msg_destination_directory="宛先ディレクトリ。"
 msg_options="オプション"
 msg_print_help_message="ヘルプメッセージをstderrに出力して終了します。"
-msg_unable_to_create_temporary_directory="一時ディレクトリを作成できません"
 msg_usage="使用法"
 ;;
 ja|ja_JP|ja_JP.*) # Japanese (Latin)
+msg_destination_directory="Atesaki direkutori."
 msg_options="Opushon"
 msg_print_help_message="Herupumessēji o stderr ni shutsuryoku shite shūryō shimasu."
-msg_unable_to_create_temporary_directory="Ichiji direkutori o sakusei dekimasen"
 msg_usage="Shiyō-hō"
 ;;
 pl|pl_PL|pl_PL.*) # Polish
+msg_destination_directory="Katalog docelowy."
 msg_options="Opcje"
 msg_print_help_message="Wydrukuj komunikat pomocy na stderr i wyjdź."
-msg_unable_to_create_temporary_directory="Nie można utworzyć katalogu tymczasowego"
 msg_usage="Stosowanie"
 ;;
 ru_RU.UTF8) # Russian (Cyrillic)
+msg_destination_directory="Целевой каталог."
 msg_options="Опции"
 msg_print_help_message="Распечатать справочное сообщение в stderr и выйти."
-msg_unable_to_create_temporary_directory="Невозможно создать временный каталог"
 msg_usage="Использование"
 ;;
 ru|ru_RU|ru_RU.*) # Russian (Latin)
+msg_destination_directory="Tselevoy katalog."
 msg_options="Optsii"
 msg_print_help_message="Raspechatat' spravochnoye soobshcheniye v stderr i vyyti."
-msg_unable_to_create_temporary_directory="Nevozmozhno sozdat' vremennyy katalog"
 msg_usage="Ispol'zovaniye"
 ;;
 zh_CN.UTF8) # Chinese (Simplified)
+msg_destination_directory="目标目录。"
 msg_options="选项"
 msg_print_help_message="将帮助消息打印到stderr并退出。"
-msg_unable_to_create_temporary_directory="无法创建临时目录"
 msg_usage="用法"
 ;;
 zh|zh_CN|zh_CN.*) # Chinese (Latin)
+msg_destination_directory="Mùbiāo mùlù."
 msg_options="Xuǎnxiàng"
 msg_print_help_message="Jiāng bāngzhù xiāoxī dǎyìn dào stderr bìng tuìchū."
-msg_unable_to_create_temporary_directory="Wúfǎ chuàngjiàn línshí mùlù"
 msg_usage="Yòngfǎ"
 ;;
 *) # English
+msg_destination_directory="Destination directory."
 msg_options="Options"
 msg_print_help_message="Print help message to stderr and exit."
-msg_unable_to_create_temporary_directory="Unable to create temporary directory"
 msg_usage="Usage"
 esac
 
 ############################################################ FUNCTIONS
-
-have()
-{
-	type "$@" > /dev/null 2>&1
-}
 
 die()
 {
@@ -122,8 +117,9 @@ usage()
 {
 	local optfmt="\t%-9s %s\n"
 	exec >&2
-	printf "$msg_usage: %s %s [-h] dirA dirB\n" "$VCR_PROGRAM" "$pgm"
+	printf "$msg_usage: %s %s [-h] [-d dir] file\n" "$VCR_PROGRAM" "$pgm"
 	printf "$msg_options:\n"
+	printf "$optfmt" "-d dir" "$msg_destination_directory"
 	printf "$optfmt" "-h" "$msg_print_help_message"
 	die
 }
@@ -133,8 +129,9 @@ usage()
 #
 # Command-line options
 #
-while getopts h flag; do
+while getopts d:h flag; do
 	case "$flag" in
+	d) DEST="$OPTARG" ;;
 	*) usage # NOTREACHED
 	esac
 done
@@ -143,31 +140,18 @@ shift $(( $OPTIND - 1 ))
 #
 # Check command-line arguments
 #
-if [ $# -ne 2 ]; then
+if [ $# -lt 1 ]; then
 	usage
 	# NOTREACHED
 fi
 
 #
-# Get library versions
+# Unpack archives
 #
-tmpdir=$( mktemp -d "$MKTEMP_TEMPLATE" ) ||
-	die "$msg_unable_to_create_temporary_directory"
-trap 'rm -Rf "$tmpdir"' EXIT
-dirA="${1%/}"
-dirB="${2%/}"
-vcr list -s "$dirA" > "$tmpdir/A.txt" || die
-vcr list -s "$dirB" > "$tmpdir/B.txt" || die
-
-#
-# Display differences
-#
-if [ -t 1 ] && have vimcat; then # stdout is a tty
-	diff -pu "$tmpdir/A.txt" "$tmpdir/B.txt" | vimcat |
-		awk 'NR==1{next}NR==2&&!/-/{next}1'
-else
-	diff -pu "$tmpdir/A.txt" "$tmpdir/B.txt"
-fi
+set -e # errexit
+for path in "$@"; do
+	tar zxf "$path" ${DEST:+-C "$DEST"}
+done
 
 exit $SUCCESS
 

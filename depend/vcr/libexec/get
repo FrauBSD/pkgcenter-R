@@ -1,0 +1,903 @@
+#!/bin/sh
+############################################################ IDENT(1)
+#
+# $Title: Script to download R libraries $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/vcr/libexec/get 2020-07-16 16:40:51 -0700 freebsdfrau $
+#
+############################################################ CONFIGURATION
+
+#
+# URL to CRAN dev repo
+# NB: This can be NULL to disable
+#
+DEV_REPO=
+
+#
+# URL to CRAN mirror
+# NB: This can be NULL to disable
+#
+CRAN_MIRROR=
+
+#
+# URL to CRAN repo
+#
+CRAN_REPO=https://cran.r-project.org/
+
+#
+# Where to store downloads
+#
+VCR_DESTDIR=~/vcran
+
+############################################################ ENVIRONMENT
+
+#
+# Debugging
+#
+: ${VCR_DEBUG:=}
+
+#
+# Inherited from vcr
+#
+: ${R:=R}
+: ${R_INHERITED:=}
+: ${VCR_PROGRAM:=vcr}
+
+############################################################ GLOBALS
+
+#
+# Program basename and OS Glue
+#
+: "${UNAME_p:=$( uname -p )}"
+: "${UNAME_s:=$( uname -s )}"
+case "$UNAME_s" in
+Linux)
+	pgm=$( readlink -f "$0" )
+	pgm="${pgm##*/}"
+	;;
+*)
+	pgm="${0##*/}"
+esac
+case "$UNAME_p" in
+i?86) UNAME_p=x86 ;;
+esac
+
+#
+# Global exit status
+#
+SUCCESS=0
+FAILURE=1
+
+#
+# Command-line options
+#
+BINARY_FETCH=		# -B
+CONSOLE=		# -c
+[ -t 1 ] && CONSOLE=1
+DESTDIR=		# -d dir
+FORCE=			# -f
+HELP=			# -h
+IGNORE_ERRORS=		# -i
+NETRC=			# -N
+REQFILE=		# -r file
+
+#
+# Miscellaneous
+#
+ERROR=
+NPACKAGES=0
+PLATFORM=
+REPOS=
+R_VERS=
+_REPOS=
+
+############################################################ I18N
+
+case "${LANG:-$LC_ALL}" in
+de|de_DE|de_DE.*) # German
+fmt_invalid_package_name="%s: Ungültiger paketname"
+fmt_is_a_directory="%s: Ist ein verzeichnis"
+fmt_no_such_cran_package="%s: Kein solches CRAN-paket"
+fmt_no_such_file_or_directory="Keine solche datei oder ordner"
+fmt_unable_to_download="%s: Download nicht möglich %s"
+fmt_unable_to_preen_name_from="Name kann nicht abgerufen werden von"
+msg_always_display_color="Zeigen Sie immer Farbe an."
+msg_debug="Debuggen"
+msg_destination_directory="Zielverzeichnis."
+msg_download="Herunterladen"
+msg_enable_additional_debugging_statements="Aktivieren sie zusätzliche debuggen-Anweisungen."
+msg_enable_netrc_support="Aktivieren Sie die Netrc-Unterstützung."
+msg_errors_detected="Fehler erkannt"
+msg_fatal="TÖDLICH"
+msg_force_download_even_if_already_exists="Macht. Download auch wenn schon vorhanden."
+msg_ignore_errors_and_keep_going="Fehler ignorieren und weitermachen."
+msg_install_binary_packages="Installieren Sie Binärpakete."
+msg_missing_package_or_url_argument="Fehlendes paket oder URL argument"
+msg_missing_r_interpreter_argument="Fehlendes R interpreterargument"
+msg_options="Optionen"
+msg_positional_arguments_ignored="Positionsargumente ignoriert wenn angegeben \`-r file'"
+msg_print_help_message="Hilfemeldung an stderr ausgeben und beenden."
+msg_process_requirements_file="Prozessanforderungsdatei."
+msg_success="ERFOLG"
+msg_unable_to_determine_r_version="R-Version konnte nicht ermittelt werden"
+msg_usage="Verwendungszweck"
+msg_user_interrupt_caught="Benutzerinterrupt abgefangen"
+msg_warning="ACHTUNG"
+;;
+he|he_IL|he_IL.*) # Hebrew
+fmt_invalid_package_name="%s: שם חבילה לא חוקי"
+fmt_is_a_directory="%s: היא ספרייה"
+fmt_no_such_cran_package="%s: אין חבילת CRAN כזו"
+fmt_no_such_file_or_directory="%s: אין כזה קובץ או תקייה"
+fmt_unable_to_download="%s: %s לא ניתן להוריד"
+fmt_unable_to_preen_name_from="%s לא ניתן לקבל שם מ-"
+msg_always_display_color="תמיד להציג צבע."
+msg_debug="אשפוז"
+msg_destination_directory="ספריית יעד."
+msg_download="הורד"
+msg_enable_additional_debugging_statements="הפעל הצהרות באגים נוספות."
+msg_enable_netrc_support="אפשר תמיכה ב- netrc."
+msg_errors_detected="התגלו שגיאות"
+msg_fatal="פאטאל"
+msg_force_download_even_if_already_exists="כוח. הורד גם אם כבר קיים."
+msg_ignore_errors_and_keep_going="התעלם משגיאות והמשיך הלאה."
+msg_install_binary_packages="התקן חבילות בינאריות."
+msg_missing_package_or_url_argument="החבילה החסרה או ארגומנט URL"
+msg_missing_r_interpreter_argument="חסר ארגומנט המתורגמן"
+msg_options="אפשרויות"
+msg_positional_arguments_ignored="ארגומנטים שהתעלמו מהם בעת קבלת \ '-r file'"
+msg_print_help_message="הדפס את הודעת העזרה ל stdr ולצאת."
+msg_process_requirements_file="קובץ דרישות התהליך."
+msg_success="הצלחה"
+msg_unable_to_determine_r_version="לא ניתן לקבוע את גרסת ה- R"
+msg_usage="שימוש"
+msg_user_interrupt_caught="הפרעת המשתמש נתפסה"
+msg_warning="אזהרה"
+;;
+ja_JP.UTF8) # Japanese (Kanji)
+fmt_invalid_package_name="%s：無効なパッケージ名"
+fmt_is_a_directory="%s：ディレクトリです"
+fmt_no_such_cran_package="%s：そのようなCRANパッケージはありません"
+fmt_no_such_file_or_directory="%s：そのようなファイルまたはディレクトリはありません"
+fmt_unable_to_download="%s：%sをダウンロードできません"
+fmt_unable_to_preen_name_from="%sから名前を修復できません"
+msg_always_display_color="常に色を表示します。"
+msg_debug="デバッグ"
+msg_destination_directory="宛先ディレクトリ。"
+msg_download="ダウンロード"
+msg_enable_additional_debugging_statements="追加のデバッグステートメントを有効にします。"
+msg_enable_netrc_support="netrcサポートを有効にします。"
+msg_errors_detected="検出されたエラー"
+msg_fatal="致命的"
+msg_force_download_even_if_already_exists="力。 すでに存在する場合でもダウンロードしてください。"
+msg_ignore_errors_and_keep_going="エラーを無視して続行します。"
+msg_install_binary_packages="バイナリパッケージをインストールします。"
+msg_missing_package_or_url_argument="パッケージまたはURL引数がありません"
+msg_missing_r_interpreter_argument="Rインタプリタの引数がありません"
+msg_options="オプション"
+msg_positional_arguments_ignored="\`-r file'を指定すると位置引数は無視されます"
+msg_print_help_message="ヘルプメッセージをstderrに出力して終了します。"
+msg_process_requirements_file="プロセス要件ファイル。"
+msg_success="成功"
+msg_unable_to_determine_r_version="Rバージョンを判別できません"
+msg_usage="使用法"
+msg_user_interrupt_caught="ユーザー割り込みがキャッチされました"
+msg_warning="警告"
+;;
+ja|ja_JP|ja_JP.*) # Japanese (Latin)
+fmt_invalid_package_name="%s: Mukōna pakkēji-mei"
+fmt_is_a_directory="%s: Direkutoridesu"
+fmt_no_such_cran_package="%s: Sono yōna CRAN pakkēji wa arimasen"
+fmt_no_such_file_or_directory="%s: Sono yōna fairu matawa direkutori wa arimasen"
+fmt_unable_to_download="%s: %s o daunrōdo dekimasen"
+fmt_unable_to_preen_name_from="%s kara namae o shūfuku dekimasen"
+msg_always_display_color="Tsuneni iro o hyōji shimasu."
+msg_debug="DEBAGGU"
+msg_destination_directory="Atesaki direkutori."
+msg_download="Daunrōdo"
+msg_enable_additional_debugging_statements="Tsuika no debaggusutētomento o yūkō ni shimasu."
+msg_enable_netrc_support="netrc sapōto o yūkō ni shimasu."
+msg_errors_detected="Kenshutsu sa reta erā"
+msg_fatal="CHIMEI-TEKI"
+msg_force_download_even_if_already_exists="Chikara. Sudeni sonzai suru baai demo daunrōdo shite kudasai."
+msg_ignore_errors_and_keep_going="Erā o mushi shite zokkō shimasu."
+msg_install_binary_packages="Bainaripakkēji o insutōru shimasu."
+msg_missing_package_or_url_argument="Pakkēji matawa URL hikisū ga arimasen"
+msg_missing_r_interpreter_argument="R intapurita no hikisū ga arimasen"
+msg_options="Opushon"
+msg_positional_arguments_ignored="\`-r file' o shitei suru to ichi hikisū wa mushi sa remasu"
+msg_print_help_message="Herupumessēji o stderr ni shutsuryoku shite shūryō shimasu."
+msg_process_requirements_file="Purosesu yōken fairu."
+msg_success="SEIKŌ"
+msg_unable_to_determine_r_version="R bājon o hanbetsu dekimasen"
+msg_usage="Shiyō-hō"
+msg_user_interrupt_caught="Yūzā warikomi ga kyatchi sa remashita"
+msg_warning="KEIKOKU"
+;;
+pl|pl_PL|pl_PL.*) # Polish
+fmt_invalid_package_name="%s: Nieprawidłowa nazwa pakietu"
+fmt_is_a_directory="%s: Jest katalogiem"
+fmt_no_such_cran_package="%s: Brak takiego pakietu CRAN"
+fmt_no_such_file_or_directory="%s: Brak takiego pliku lub katalogu"
+fmt_unable_to_download="%s: Niemożliwe do ściągnięcia %s"
+fmt_unable_to_preen_name_from="Nie można uzyskać nazwy od %s"
+msg_always_display_color="Zawsze wyświetlaj kolor."
+msg_debug="ODPLUSKWIĆ"
+msg_destination_directory="Katalog docelowy."
+msg_download="Ściągnij"
+msg_enable_additional_debugging_statements="Włącz dodatkowe instrukcje debugowania."
+msg_enable_netrc_support="Włącz obsługę Netrc."
+msg_errors_detected="Wykryte błędy"
+msg_fatal="FATALNY"
+msg_force_download_even_if_already_exists="Siła. Pobierz, nawet jeśli już istnieje."
+msg_ignore_errors_and_keep_going="Ignoruj błędy i kontynuuj."
+msg_install_binary_packages="Zainstaluj pakiety binarne."
+msg_missing_package_or_url_argument="Brakujący pakiet lub argument URL"
+msg_missing_r_interpreter_argument="Brak argumentu interpretera R"
+msg_options="Opcje"
+msg_positional_arguments_ignored="Argumenty pozycyjne ignorowane, gdy podano \`-r file'"
+msg_print_help_message="Wydrukuj komunikat pomocy na stderr i wyjdź."
+msg_process_requirements_file="Plik wymagań procesowych."
+msg_success="POWODZENIE"
+msg_unable_to_determine_r_version="Nie można ustalić wersji R."
+msg_usage="Stosowanie"
+msg_user_interrupt_caught="Złapano przerwanie użytkownika"
+msg_warning="OSTRZEŻENIE"
+;;
+ru_RU.UTF8) # Russian (Cyrillic)
+fmt_invalid_package_name="%s: Неверное имя пакета"
+fmt_is_a_directory="%s: Это каталог"
+fmt_no_such_cran_package="%s: Нет такого CRAN пакета"
+fmt_no_such_file_or_directory="%s: Данный файл или каталог отсутствует"
+fmt_unable_to_download="%s: Не в состоянии загрузить %s"
+fmt_unable_to_preen_name_from="Невозможно получить имя от %s"
+msg_always_display_color="Всегда отображать цвет."
+msg_debug="ОТЛАЖИВАТЬ"
+msg_destination_directory="Целевой каталог."
+msg_download="Скачать"
+msg_enable_additional_debugging_statements="Включить дополнительные операторы отладки."
+msg_enable_netrc_support="Включить поддержку netrc."
+msg_errors_detected="Обнаружены ошибки"
+msg_fatal="ФАТАЛЬНЫЙ"
+msg_force_download_even_if_already_exists="Силы. Скачать, даже если уже существует."
+msg_ignore_errors_and_keep_going="Игнорируйте ошибки и продолжайте."
+msg_install_binary_packages="Установите бинарные пакеты."
+msg_missing_package_or_url_argument="Отсутствует пакета или URL аргумент"
+msg_missing_r_interpreter_argument="Отсутствует R интерпретатора аргумент"
+msg_options="Опции"
+msg_positional_arguments_ignored="Позиционные аргументы игнорируются при задании \`-r file'"
+msg_print_help_message="Распечатать справочное сообщение в stderr и выйти."
+msg_process_requirements_file="Файл требований к процессу."
+msg_success="УСПЕХ"
+msg_unable_to_determine_r_version="Невозможно определить версию R"
+msg_usage="Использование"
+msg_user_interrupt_caught="Пользователь прерван"
+msg_warning="ПРЕДУПРЕЖДЕНИЕ"
+;;
+ru|ru_RU|ru_RU.*) # Russian (Latin)
+fmt_invalid_package_name="%s: Nevernoye paketa imya"
+fmt_is_a_directory="%s: Eto katalog"
+fmt_no_such_cran_package="%s: Net takogo CRAN paketa"
+fmt_no_such_file_or_directory="%s: Dannyy fayl ili katalog otsutstvuyet"
+fmt_unable_to_download="%s: Ne v sostoyanii zagruzit' %s"
+fmt_unable_to_preen_name_from="Nevozmozhno poluchit' imya ot %s"
+msg_always_display_color="Vsegda otobrazhat' tsvet."
+msg_debug="OTLAZHIVAT'"
+msg_destination_directory="Tselevoy katalog."
+msg_download="Skachat'"
+msg_enable_additional_debugging_statements="Vklyuchit' dopolnitel'nyye operatory otladki."
+msg_enable_netrc_support="Vklyuchit' podderzhku netrc."
+msg_errors_detected="Obnaruzheny oshibki"
+msg_fatal="FATAL'NYY"
+msg_force_download_even_if_already_exists="Sily. Skachat', dazhe yesli uzhe sushchestvuyet."
+msg_ignore_errors_and_keep_going="Ignoriruyte oshibki i prodolzhayte."
+msg_install_binary_packages="Ustanovite binarnyye pakety."
+msg_missing_package_or_url_argument="Otsutstvuyet paketa ili URL argument"
+msg_missing_r_interpreter_argument="Otsutstvuyet R interpretatora argument"
+msg_options="Optsii"
+msg_positional_arguments_ignored="Pozitsionnyye argumenty ignoriruyutsya pri zadanii \`-r file'"
+msg_print_help_message="Raspechatat' spravochnoye soobshcheniye v stderr i vyyti."
+msg_process_requirements_file="Fayl trebovaniy k protsessu."
+msg_success="USPEKH"
+msg_unable_to_determine_r_version="Nevozmozhno opredelit' versiyu R"
+msg_usage="Ispol'zovaniye"
+msg_user_interrupt_caught="Pol'zovatel' prervan"
+msg_warning="PREDUPREZHDENIYe"
+;;
+zh_CN.UTF8) # Chinese (Simplified)
+fmt_invalid_package_name="%s: 包名称无效"
+fmt_is_a_directory="%s: 是一个目录"
+fmt_no_such_cran_package="%s: 没有这样的CRAN包"
+fmt_no_such_file_or_directory="%s: 没有相应的文件和目录"
+fmt_unable_to_download="%s: 无法下载 %s"
+fmt_unable_to_preen_name_from="无法从中获取名称 %s"
+msg_always_display_color="始终显示颜色。"
+msg_debug="调试"
+msg_destination_directory="目标目录。"
+msg_download="下载"
+msg_enable_additional_debugging_statements="启用其他调试语句。"
+msg_enable_netrc_support="启用netrc支持。"
+msg_errors_detected="检测到错误"
+msg_fatal="致命"
+msg_force_download_even_if_already_exists="力。 即使已经存在也下载。"
+msg_ignore_errors_and_keep_going="忽略错误并继续前进。"
+msg_install_binary_packages="安装二进制软件包。"
+msg_missing_package_or_url_argument="缺少包或URL参数"
+msg_missing_r_interpreter_argument="缺少R解释器参数"
+msg_options="选项"
+msg_positional_arguments_ignored="给定 \`-r file' 时忽略位置参数"
+msg_print_help_message="将帮助消息打印到stderr并退出。"
+msg_process_requirements_file="流程需求文件。"
+msg_success="成功"
+msg_unable_to_determine_r_version="无法确定R版本"
+msg_usage="用法"
+msg_user_interrupt_caught="捕获到用户中断"
+msg_warning="警告"
+;;
+zh|zh_CN|zh_CN.*) # Chinese (Latin)
+fmt_invalid_package_name="%s: Bāo míngchēng wúxiào"
+fmt_is_a_directory="%s: Shì yīgè mùlù"
+fmt_no_such_cran_package="%s: Méiyǒu zhèyàng de CRAN bāo"
+fmt_no_such_file_or_directory="%s: Méiyǒu xiāngyìng de wénjiàn hé mùlù"
+fmt_unable_to_download="%s: Wúfǎ xiàzài %s"
+fmt_unable_to_preen_name_from="Wúfǎ cóngzhōng huòqǔ míngchēng %s"
+msg_always_display_color="Shǐzhōng xiǎnshì yánsè."
+msg_debug="TIÁOSHÌ"
+msg_destination_directory="Mùbiāo mùlù."
+msg_download="Xiàzài"
+msg_enable_additional_debugging_statements="Qǐyòng qítā tiáoshì yǔjù."
+msg_enable_netrc_support="Qǐyòng netrc zhīchí."
+msg_errors_detected="Jiǎncè dào cuòwù"
+msg_fatal="ZHÌMÌNG"
+msg_force_download_even_if_already_exists="Lì. Jíshǐ yǐjīng cúnzài yě xiàzài."
+msg_ignore_errors_and_keep_going="Hūlüè cuòwù bìng jìxù qiánjìn."
+msg_install_binary_packages="Ānzhuāng èrjìnzhì ruǎnjiàn bāo."
+msg_missing_package_or_url_argument="Quēshǎo bāo huò URL cānshù"
+msg_missing_r_interpreter_argument="Quēshǎo R jiěshì qì cānshù"
+msg_options="Xuǎnxiàng"
+msg_positional_arguments_ignored="Gěi dìng \`-r file' shí hūlüè wèizhì cānshù"
+msg_print_help_message="Jiāng bāngzhù xiāoxī dǎyìn dào stderr bìng tuìchū."
+msg_process_requirements_file="Liúchéng xūqiú wénjiàn."
+msg_success="CHÉNGGŌNG"
+msg_unable_to_determine_r_version="Wúfǎ quèdìng R bǎnběn"
+msg_usage="Yòngfǎ"
+msg_user_interrupt_caught="Bǔhuò dào yònghù zhōngduàn"
+msg_warning="JǏNGGÀO"
+;;
+*) # English
+fmt_invalid_package_name="%s: Invalid package name"
+fmt_is_a_directory="%s: Is a directory"
+fmt_no_such_cran_package="%s: No such CRAN package"
+fmt_no_such_file_or_directory="%s: No such file or directory"
+fmt_unable_to_download="%s: Unable to download %s"
+fmt_unable_to_preen_name_from="Unable to preen name from %s"
+msg_always_display_color="Always display color."
+msg_debug="DEBUG"
+msg_destination_directory="Destination directory."
+msg_download="Download"
+msg_enable_additional_debugging_statements="Enable additional debugging statements."
+msg_enable_netrc_support="Enable netrc support."
+msg_errors_detected="Errors detected"
+msg_fatal="FATAL"
+msg_force_download_even_if_already_exists="Force. Download even if already exists."
+msg_ignore_errors_and_keep_going="Ignore errors and keep going."
+msg_install_binary_packages="Install binary packages."
+msg_missing_package_or_url_argument="Missing package or URL argument"
+msg_missing_r_interpreter_argument="Missing R interpreter argument"
+msg_options="Options"
+msg_positional_arguments_ignored="Positional arguments ignored when given \`-r file'"
+msg_print_help_message="Print help message to stderr and exit."
+msg_process_requirements_file="Process requirements file."
+msg_success="SUCCESS"
+msg_unable_to_determine_r_version="Unable to determine R version"
+msg_usage="Usage"
+msg_user_interrupt_caught="User interrupt caught"
+msg_warning="WARNING"
+esac
+
+############################################################ FUNCTIONS
+
+have(){ type "$@" > /dev/null 2>&1; }
+
+usage()
+{
+	local optfmt="\t%-10s %s\n"
+	exec >&2
+	printf "$msg_usage: %s %s [-BcDfhiN] [-d dir] [-r file] [--] " \
+		"$VCR_PROGRAM" "$pgm"
+	if [ "$R_INHERITED" ]; then
+		printf "pkg[==vers]|url ...\n"
+	else
+		printf "R pkg[==vers]|url ...\n"
+	fi
+	printf "$msg_options:\n"
+	printf "$optfmt" "-B" "$msg_install_binary_packages"
+	printf "$optfmt" "-c" "$msg_always_display_color"
+	printf "$optfmt" "-D" "$msg_enable_additional_debugging_statements"
+	printf "$optfmt" "-d dir" \
+		"$msg_destination_directory $msg_default \`$VCR_DESTDIR'."
+	printf "$optfmt" "-f" "$msg_force_download_even_if_already_exists"
+	printf "$optfmt" "-h" "$msg_print_help_message"
+	printf "$optfmt" "-i" "$msg_ignore_errors_and_keep_going"
+	printf "$optfmt" "-N" "$msg_enable_netrc_support"
+	printf "$optfmt" "-r file" "$msg_process_requirements_file"
+	exit $FAILURE
+}
+
+exec 3<&1
+eval2()
+{
+	if [ "$CONSOLE" ]; then
+		printf "\e[2m%s\e[m\n" "$*" >&3
+	else
+		printf "%s\n" "$*" >&3
+	fi
+	eval "$@"
+}
+
+step()
+{
+	if [ "$CONSOLE" ]; then
+		printf "\e[32;1m==>\e[39m %s\e[m\n" "$*"
+	else
+		printf "==> %s\n" "$*"
+	fi
+}
+
+warn()
+{
+	local fmt="$1"
+	shift 1 # fmt
+	if [ "$CONSOLE" ]; then
+		printf "\e[33;1m$msg_warning!\e[m $fmt\n" "$@" >&2
+	else
+		printf "$msg_warning! $fmt\n" "$@" >&2
+	fi
+}
+
+die()
+{
+	local fmt="$1"
+	if [ "$fmt" ]; then
+		shift 1 # fmt
+		if [ "$CONSOLE" ]; then
+			printf "\e[1;31m$msg_fatal!\e[m $fmt\n" "$@" >&2
+		else
+			printf "$msg_fatal! $fmt\n" "$@" >&2
+		fi
+	fi
+	exit $FAILURE
+}
+
+debug()
+{
+	[ ! "$VCR_DEBUG" ] && return
+	local fmt="$1"
+	shift 1 # fmt
+	if [ "$CONSOLE" ]; then
+		printf "\e[35m$msg_debug\e[m $fmt\n" "$@" >&2
+	else
+		printf "$msg_debug $fmt\n" "$@" >&2
+	fi
+}
+
+http_cache_get()
+{
+	local __url="$1" __var_to_set="$2"
+	local __var __val
+
+	__var=$( echo "$__url" | awk '{
+		gsub(/[^0-9a-zA-Z_]/, "_")
+		print
+	}' )
+	if eval [ \"\${_cache_$__var+set}\" ]; then
+		eval __val=\"\${_cache_$__var}\"
+		if [ "$__var_to_set" ]; then
+			eval $__var_to_set=\"\$__val\"
+		else
+			echo "$__val"
+		fi
+		return
+	fi
+
+	case "$__url" in
+	*.gz) __val=$( eval2 curl ${NETRC:+--netrc} -sLo- "$__url" |
+		gunzip -c 2> /dev/null ) ;;
+	*) __val=$( eval2 curl ${NETRC:+--netrc} -sLo- "$__url" )
+	esac || return
+
+	eval _cache_$__var=\"\$__val\"
+
+	if [ "$__var_to_set" ]; then
+		eval $__var_to_set=\"\$__val\"
+	else
+		echo "$__val"
+	fi
+}
+
+cran_init()
+{
+	local n="$1" var
+
+	for var in name url vers; do
+		eval $var$n=
+	done
+
+	shift 1 # n
+	while [ $# -gt 0 ]; do
+		var="${1%%=*}"
+		eval $var$n=\""\${1#$var=}"\"
+		shift 1 # var=val
+	done
+}
+
+cran_attr()
+{
+	local n="$1"
+	local vers repo resp
+
+	# Variables returned to caller
+	eval name=\"\$name$n\"
+	eval vers=\"\$vers$n\"
+	eval pkgs=
+
+	case "$vers" in
+	[Ll][Aa][Tt][Ee][Ss][Tt]) : fall-through ;; # latest
+	*)
+		if [ "$BINARY_FETCH" ]; then
+			src_name="${name}_$vers.tgz"
+		else
+			src_name="${name}_$vers.tar.gz"
+		fi
+		return
+	esac
+
+	resp=
+	for repo in $REPOS; do
+		repo="${repo%/}"
+		for pkgs in $repo/PACKAGES.gz $repo/PACKAGES; do
+			# DEV_REPO does not provide PACKAGES.gz
+			case "$pkgs" in
+			${DEV_REPO%/}/*.gz) continue ;;
+			esac
+			http_cache_get $pkgs resp && break
+		done
+		[ "$resp" ] || continue
+		src_name=$( echo "$resp" | awk -v name="$name" '
+			BEGIN { BINARY_FETCH = ENVIRON["BINARY_FETCH"] }
+			{ gsub(/\r$/, "") }
+			sub(/^Package:[[:space:]]*/, "") && $1 == name, \
+			/^[[:space:]]*$/ {
+				if (!sub(/^Version:[[:space:]]*/, "")) next
+				printf "%s_%s.%s\n", name, $1,
+					BINARY_FETCH ? "tgz" : "tar.gz"
+				exit found = 1
+			}
+			END { exit !found }
+		' ) || continue
+		break
+	done
+	[ "$src_name" ] || die "$fmt_no_such_cran_package" "$name"
+}
+
+R()
+{
+	eval2 command $R --slave --no-restore "$@"
+}
+
+Rcat()
+{
+	R -e "'cat(paste0($1, \"\n\"))'"
+}
+
+if have realpath; then
+	: good
+elif have readlink; then
+	realpath(){ readlink -f "$@"; }
+elif have perl; then
+	realpath(){ perl -le 'use Cwd; print Cwd::abs_path(@ARGV);' -- "$@"; }
+else
+	realpath(){ echo "$@"; }
+fi
+
+############################################################ MAIN
+
+set -e # errexit
+
+#
+# Process command-line options
+#
+while getopts BcDd:fhiNr: flag; do
+	case "$flag" in
+	B) BINARY_FETCH=1 ;;
+	c) CONSOLE=1 ;;
+	D) VCR_DEBUG=1 ;;
+	d) DESTDIR="$OPTARG" ;;
+	f) FORCE=1 ;;
+	h) HELP=1 ;;
+	i) IGNORE_ERRORS=1 ;;
+	N) NETRC=1 ;;
+	r) REQFILE="$OPTARG" ;;
+	*) usage # NOTREACHED
+	esac
+done
+shift $(( $OPTIND - 1 ))
+
+#
+# Check invocation
+#
+if [ $# -lt 1 ]; then
+	if [ "$R_INHERITED" ]; then
+		if [ "$REQFILE" ]; then
+			[ -e "$REQFILE" ] ||
+				die "$fmt_no_such_file_or_directory" "$REQFILE"
+			[ ! -d "$REQFILE" ] ||
+				die "$fmt_is_a_directory" "$REQFILE"
+		elif [ ! "$HELP" ]; then
+			warn "$msg_missing_package_or_url_argument"
+			usage
+			# NOTREACHED
+		fi
+	elif [ ! "$HELP" ]; then
+		warn "$msg_missing_r_interpreter_argument"
+		usage
+		# NOTREACHED
+	fi
+fi
+if [ ! "$R_INHERITED" ]; then
+	if [ $# -gt 0 ]; then
+		R="$1"
+		shift 1 # R
+	fi
+	if [ $# -lt 1 -a ! "$HELP" ]; then
+		if [ "$REQFILE" ]; then
+			[ -e "$REQFILE" ] ||
+				die "$fmt_no_such_file_or_directory" "$REQFILE"
+			[ ! -d "$REQFILE" ] ||
+				die "$fmt_is_a_directory" "$REQFILE"
+		else
+			warn "$msg_missing_package_or_url_argument"
+			usage
+			# NOTREACHED
+		fi
+	fi
+elif [ "$REQFILE" -a ! "$HELP" ]; then
+	[ -e "$REQFILE" ] || die "$fmt_no_such_file_or_directory" "$REQFILE"
+	[ ! -d "$REQFILE" ] || die "$fmt_is_a_directory" "$REQFILE"
+fi
+
+#
+# Display usage if given `-h'
+#
+[ ! "$HELP" ] || usage # NOTREACHED
+
+#
+# Default destination without `-d dir'
+#
+: "${DESTDIR:=$VCR_DESTDIR}"
+
+#
+# R release/version
+#
+R_VERS=$( Rcat R.version.string 2> /dev/null |
+	sed -e 's/^[^0-9]*//;s/[[:space:]].*//' ) ||
+	: otherwise use R executable name
+if [ ! "$R_VERS" ]; then
+	case "${R##*/}" in
+	R-[0-9]*)
+		R_VERS="${R##*/}"
+		R_VERS="${R#R-}"
+		;;
+	*) die "$msg_unable_to_determine_r_version"
+	esac
+fi
+export R_VERS
+
+#
+# Binary installation
+#
+if [ "$BINARY_FETCH" ]; then
+	case "$( cat /etc/redhat-release 2> /dev/null )" in
+	*" 6."*) PLATFORM=rhel6-$UNAME_p ;;
+	*" 7."*) PLATFORM=rhel7-$UNAME_p ;;
+	*" 8."*) PLATFORM=rhel8-$UNAME_p ;;
+	*) PLATFORM=$( Rcat 'R.version$platform' )
+	esac
+	DESTDIR="$DESTDIR/$PLATFORM/$R_VERS"
+	export BINARY_FETCH PLATFORM
+fi
+
+#
+# Process command-line arguments
+#
+if [ "$REQFILE" ]; then
+	[ $# -lt 1 ] || warn "$msg_positional_arguments_ignored"
+	export fmt_invalid_package_name
+	eval "$( awk -v sq="'" '
+		BEGIN {
+			n = 0
+		}
+		function escape(str) {
+			gsub(sq, sq "\\" sq sq, str)
+			return sq str sq
+		}
+		function setvar(var, value) {
+			printf "%s=%s\n", var, escape(value)
+		}
+		function die1(fmt, arg1) {
+			printf "die %s %s\n", escape(fmt), escape(arg1)
+			exit
+		}
+		function cran_init(n) { print "cran_init", n }
+		/^[[:space:]]*(#|$)/ { next }
+		$1 ~ /'\''|[[:space:]]/ {
+			die1(ENVIRON["fmt_invalid_package_name"], $1)
+			# NOTREACHED
+		}
+		$1 ~ /(^=|[^=]=[^=]|=.+=|=$)/ {
+			die1(ENVIRON["fmt_invalid_package_name"], $1)
+		}
+		$1 ~ /==/ {
+			name = vers = $1
+			sub(/==.*/, "", name)
+			sub(/.*==/, "", vers)
+			n++
+			cran_init(n)
+			setvar("name" n, name)
+			setvar("vers" n, vers)
+			next
+		}
+		$1 == "-u" && $2 ~ "://" {
+			n++
+			url = $2
+			cran_init(n)
+			setvar("url" n, url)
+			next
+		}
+		{
+			n++
+			cran_init(n)
+			setvar("name" n, $1)
+			setvar("vers" n, "latest") # Translated by cran_attr
+		}
+		END {
+			setvar("NPACKAGES", n)
+		}
+	' "$REQFILE" )"
+
+else # No REQFILE
+	while [ $# -gt 0 ]; do
+		if [ -e "$1" ]; then
+			debug "$1 exists"
+		else
+			NPACKAGES=$(( $NPACKAGES + 1 ))
+			n=$NPACKAGES
+			case "$1" in
+			*"'"*|*[$IFS]*) die "$fmt_invalid_package_name" "$1" ;;
+			=*|*[!=]=[!=]*|*=)
+			       die "$fmt_invalid_package_name" "$1" ;;
+			*==*)  cran_init $n name="${1%%==*}" vers="${1#*==}" ;;
+			*://*) cran_init $n url="$1" ;;
+			*=*)   die "$fmt_invalid_package_name" "$1" ;;
+			*)     cran_init $n name="$1" vers=latest
+			esac
+		fi
+		shift 1
+	done
+fi
+
+#
+# Create directories
+#
+mkdir -p "$DESTDIR"
+
+#
+# Generate repos URLs
+#
+REPOS=
+if [ "$BINARY_FETCH" ]; then
+	for repo in $DEV_REPO; do
+		REPOS="$REPOS ${repo%/}/bin/$PLATFORM/contrib/$R_VERS/"
+	done
+	unset repo
+else
+	for repo in $DEV_REPO $CRAN_MIRROR $CRAN_REPO; do
+		REPOS="$REPOS ${repo%/}/src/contrib/"
+	done
+	unset repo
+fi
+
+#
+# Download package tarballs
+#
+step "$msg_download"
+n=0
+while [ $n -lt $NPACKAGES ]; do
+	n=$(( $n + 1 ))
+
+	# Determine remote provider
+	eval url=\"\$url$n\"
+	case "$url" in
+	"") # CRAN
+		preen_name=
+		cran_attr $n # sets name src_name pkgs
+		;;
+	*) # Supplied URL
+		preen_name=1
+		src_name=$( echo "$url" | awk '{
+			sub("^[^:]*://", "")
+			gsub(/\?.*/, "")
+			gsub(".*/", "")
+			if (ENVIRON["BINARY_FETCH"])
+				sub(/\.[Tt][Aa][Rr]\.[Gg][Zz]$/, ".tgz")
+			print
+			exit
+		}' )
+	esac
+
+	# Stash finalized details for next steps
+	eval src_name$n=\"\$src_name\"
+	name="${src_name%.tar.*}"
+	name="${name%.tgz}"
+	vers="$name"
+	name="${name%%_[0-9]*}"
+	vers="${vers#"$name"_}"
+
+	# Fetch from provider
+	src_file="$DESTDIR/$src_name"
+	if [ -e "$src_file" ]; then
+		echo "$src_file"
+		[ "$FORCE" ] || continue
+	fi
+	if [ "$pkgs" ]; then
+		# Latest version requested; $pkgs contains URL to index
+		pkgs="${pkgs%/*}"
+	fi
+	_REPOS=
+	for repo in ${pkgs:-$REPOS}; do
+		repo="${repo%/}"
+		_REPOS="$_REPOS $repo"
+		case "$repo" in
+		*/artifactory/*) _REPOS="$_REPOS $repo/Archive/$name/$vers/" ;;
+		*) _REPOS="$_REPOS $repo/Archive/$name/"
+		esac
+	done
+	trap 'rm -f "$src_file"; die "$msg_user_interrupt_caught"' SIGINT
+	trap 'rm -f "$src_file"' EXIT
+	for repo in $_REPOS; do
+		repo="${repo%/}"
+		src_url="$repo/$src_name"
+		if ! eval2 curl ${NETRC:+--netrc} -Lo "$src_file" "$src_url"
+		then
+			[ "$IGNORE_ERRORS" ] || die "$fmt_unable_to_download" \
+				"$name" "$src_name"
+			warn "$fmt_unable_to_download" "$name" "$src_name"
+			ERROR=1
+			break
+		fi
+		case "$( file -b "$src_file" )" in
+		*HTML*|*ASCII\ text*) rm -f "$DESTDIR/$src_name" ;;
+		*) break
+		esac
+	done
+	trap - SIGINT EXIT
+	if [ ! -e "$src_file" ]; then
+		[ "$IGNORE_ERRORS" ] ||
+			die "$fmt_unable_to_download" "$name" "$src_name"
+		warn "$fmt_unable_to_download" "$name" "$src_name"
+		ERROR=1
+	fi
+	echo "$src_file"
+done
+
+if [ "$ERROR" ]; then
+	[ "$IGNORE_ERRORS" ] || die "$msg_errors_detected"
+	warn "$msg_errors_detected"
+else
+	step "$msg_success"
+fi
+exit $SUCCESS
+
+################################################################################
+# END
+################################################################################

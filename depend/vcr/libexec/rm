@@ -2,8 +2,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script to uninstall R libraries $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/vcr/libexec/rm 2019-07-12 14:05:39 -0700 freebsdfrau $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/vcr/libexec/rm 2020-07-16 16:40:51 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -135,6 +135,74 @@ msg_unable_to_extract_description_file="אין אפשרות לחלץ קובץ DE
 msg_usage="שימוש"
 msg_use_r_base_library_as_destination="השתמש בספריית הבסיס R כיעד."
 msg_warning="אזהרה"
+;;
+ja_JP.UTF8) # Japanese (Kanji)
+fmt_base_library="ベースライブラリ（-B %s）"
+fmt_invalid_package_name="%s：無効なパッケージ名"
+fmt_no_such_file_or_directory="%s：そのようなファイルまたはディレクトリはありません"
+fmt_no_such_r_interpreter="%s：そのようなRインタープリターはありません"
+fmt_option_cannot_be_combined_with="%s：オプションを\`％s'と組み合わせることはできません"
+fmt_something_went_wrong_in="%sで問題が発生しました"
+fmt_unable_to_remove="%sを削除できません"
+msg_all_good="すべて良い"
+msg_check_for_removal_dependencies="削除の依存関係を確認する"
+msg_debug="デバッグ"
+msg_default="デフォルト"
+msg_destination="先"
+msg_destination_directory="宛先ディレクトリ。"
+msg_dry_run_dont_actually_remove_anything="ドライラン。 実際には何も削除しないでください。"
+msg_dry_run_enabled="ドライランが有効（-n）。 最終アンインストールは実行されません。"
+msg_enable_additional_debugging_statements="追加のデバッグステートメントを有効にします。"
+msg_exiting="終了します。"
+msg_fatal="致命的"
+msg_force_remove_even_if_required="力。 一部のパッケージで必要な場合でも削除します。"
+msg_library="図書館"
+msg_load_dependencies="依存関係の読み込み"
+msg_missing_package_argument="パッケージ引数がありません"
+msg_options="オプション"
+msg_print_help_message="ヘルプメッセージをstderrに出力して終了します。"
+msg_proceeding_anyway="続行します（-fが指定されています）"
+msg_removal_prevented_by="除去は"
+msg_remove_packages="パッケージを削除する"
+msg_success="成功"
+msg_unable_to_extract_description_file="ディスクリプションファイルを抽出できません"
+msg_usage="使用法"
+msg_use_r_base_library_as_destination="宛先としてRベースライブラリを使用します。"
+msg_warning="警告"
+;;
+ja|ja_JP|ja_JP.*) # Japanese (Latin)
+fmt_base_library="Bēsuraiburari (-B %s)"
+fmt_invalid_package_name="%s: Mukōna pakkēji-mei"
+fmt_no_such_file_or_directory="%s: Sono yōna fairu matawa direkutori wa arimasen"
+fmt_no_such_r_interpreter="%s: Sono yōna R intāpuritā wa arimasen"
+fmt_option_cannot_be_combined_with="%s: Opushon o\`% s' to kumiawaseru koto wa dekimasen"
+fmt_something_went_wrong_in="%s de mondai ga hassei shimashita"
+fmt_unable_to_remove="%s o sakujo dekimasen"
+msg_all_good="Subete yoi"
+msg_check_for_removal_dependencies="Sakujo no isonkankei o kakunin suru"
+msg_debug="DEBAGGU"
+msg_default="Deforuto"
+msg_destination="Saki"
+msg_destination_directory="Atesaki direkutori."
+msg_dry_run_dont_actually_remove_anything="Dorairan. Jissai ni wa nani mo sakujo shinaide kudasai."
+msg_dry_run_enabled="Dorairan ga yūkō (-n). Saishū an'insutōru wa jikkō sa remasen."
+msg_enable_additional_debugging_statements="Tsuika no debaggusutētomento o yūkō ni shimasu."
+msg_exiting="Shūryō shimasu."
+msg_fatal="CHIMEI-TEKI"
+msg_force_remove_even_if_required="Chikara. Ichibu no pakkēji de hitsuyōna baai demo sakujo shimasu."
+msg_library="Toshokan"
+msg_load_dependencies="Isonkankei no yomikomi"
+msg_missing_package_argument="Pakkēji hikisū ga arimasen"
+msg_options="Opushon"
+msg_print_help_message="Herupumessēji o stderr ni shutsuryoku shite shūryō shimasu."
+msg_proceeding_anyway="Zokkō shimasu (-f ga shitei sa rete imasu)"
+msg_removal_prevented_by="Jokyo wa"
+msg_remove_packages="Pakkēji o sakujo suru"
+msg_success="SEIKŌ"
+msg_unable_to_extract_description_file="Disukuripushonfairu o chūshutsu dekimasen"
+msg_usage="Shiyō-hō"
+msg_use_r_base_library_as_destination="Atesaki to shite R bēsuraiburari o shiyō shimasu."
+msg_warning="KEIKOKU"
 ;;
 pl|pl_PL|pl_PL.*) # Polish
 fmt_base_library="Biblioteka bazowa (-B %s)"
@@ -397,7 +465,7 @@ if [ -t 1 ]; then # stdout is a tty
 else # stdout is not a tty
 	eval2(){ printf "%s\n" "$*" >&3; eval "$@"; }
 	step(){ printf "==> %s\n" "$*"; }
-	step2(){ [ ! "$VCR_DEBUG" ] || printf "-> %s\n" "$*"; }
+	step2(){ [ ! "$VCR_DEBUG" ] || printf "%s %s\n" "->" "$*"; }
 	warn(){ printf "$msg_warning! %s\n" "$*" >&2; }
 
 	die()
@@ -422,6 +490,11 @@ fi
 R()
 {
 	eval2 command $R --slave --no-restore "$@"
+}
+
+Rcat()
+{
+	R -e "'cat(paste0($1, \"\n\"))'"
 }
 
 ############################################################ MAIN
@@ -459,7 +532,7 @@ shift $(( $OPTIND - 1 ))
 : ${DESTDIR:=$VCR_DESTDIR}
 if [ "$R" ]; then
 	have "$R" || die "$fmt_no_such_r_interpreter" "$R"
-	DESTDIR=$( R -e "'cat(.libPaths(.Library))'" 3> /dev/null ) || die
+	DESTDIR=$( Rcat ".libPaths(.Library)" 3> /dev/null ) || die
 fi
 [ -e "$DESTDIR" ] || die "$fmt_no_such_file_or_directory" "$DESTDIR"
 [ -d "$DESTDIR" ] || die "$fmt_not_a_directory" "$DESTDIR"
