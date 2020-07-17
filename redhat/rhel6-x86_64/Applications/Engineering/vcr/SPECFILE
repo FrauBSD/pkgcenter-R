@@ -1,0 +1,102 @@
+# -*- tab-width:  4 -*- ;; Emacs
+# vi: set noexpandtab   :: Vi/ViM
+# vi: set filetype=spec ::
+############################################################ HEADER
+
+Name: vcr
+Group: Applications/Engineering
+# For a list of groups, see pkgcenter/redhat/Mk/GROUPS
+
+Summary: Virtual Comprehensive R (VCR) utility
+License: BSD
+Version: 8.9.2
+Release: 1
+Buildarch: noarch
+
+URL: https://www.fraubsd.org/
+Packager: Devin Teske <dteske@freebsd.org>
+Vendor: The FrauBSD Project https://www.fraubsd.org/
+
+BuildRoot: %{_tmppath}/src
+
+Requires: curl
+
+############################################################ DESCRIPTION
+
+%Description
+Virtual Comprehensive R utility
+
+############################################################ MACROS
+
+#
+# Define how we should install the files into the temporary
+# install-root from which the RPM will be compiled.
+#
+%define TAR          %{__tar}
+%define TARFROMFLAGS c --exclude CVS -f - -C
+%define TARFILES     .
+%define TARTOFLAGS   xvf - -C
+
+#
+# Short-hand
+#
+# NOTE: $RPM_BUILD_ROOT has a trailing-slash
+#
+%define TMPROOT $RPM_BUILD_ROOT
+
+############################################################ INSTALL STANZA
+
+%install
+%{__mkdir_p} %{TMPROOT}
+%{TAR} %{TARFROMFLAGS} %{_srcdir} %{TARFILES} | %{TAR} %{TARTOFLAGS} %{TMPROOT}
+
+############################################################ FILES STANZA
+
+%files
+%defattr(-,root,root)
+/usr/bin/vcr
+/usr/libexec/vcr/add
+/usr/libexec/vcr/cmp
+/usr/libexec/vcr/compare
+/usr/libexec/vcr/diff
+/usr/libexec/vcr/dl
+/usr/libexec/vcr/download
+/usr/libexec/vcr/eject
+/usr/libexec/vcr/fetch
+/usr/libexec/vcr/freeze
+/usr/libexec/vcr/get
+/usr/libexec/vcr/insert
+/usr/libexec/vcr/install
+/usr/libexec/vcr/list
+/usr/libexec/vcr/load
+/usr/libexec/vcr/ls
+/usr/libexec/vcr/pack
+/usr/libexec/vcr/pause
+/usr/libexec/vcr/play
+/usr/libexec/vcr/rec
+/usr/libexec/vcr/record
+/usr/libexec/vcr/remove
+/usr/libexec/vcr/rm
+/usr/libexec/vcr/tar
+/usr/libexec/vcr/uninstall
+/usr/libexec/vcr/unload
+/usr/libexec/vcr/unpack
+/usr/libexec/vcr/untar
+
+############################################################ FOOTER
+
+%pre
+
+
+%post
+
+
+%preun
+
+
+%postun
+
+
+%changelog
+* Thu Jul 16 2020 Devin Teske <dteske@freebsd.org> 8.9.2-1
+- Package created
