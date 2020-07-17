@@ -6,6 +6,7 @@ scriptName <- if (exists("Rvenv.file.path")) Rvenv.file.path else ""
 scriptDir <- if (exists("Rvenv.dir.path")) Rvenv.dir.path else ""
 cat(sprintf("Begin %s\n", scriptName))
 cat(sprintf("+ Dir %s\n", scriptDir))
+cat(sprintf("+ Cwd %s\n", getwd()))
 cat(sprintf("+ Running: %sinteractive\n", if (interactive()) "" else "non-"))
 cat("+ browser()\n")
 browser() # Add -i or -I to interpreter line to enable

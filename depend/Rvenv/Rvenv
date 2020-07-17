@@ -3,7 +3,7 @@
 #
 # $Title: R interpreter capable of bootstrapping custom environments $
 # $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/Rvenv/Rvenv 2020-07-16 19:40:47 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/Rvenv/Rvenv 2020-07-16 19:43:25 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -41,7 +41,7 @@ DEFAULT_PROFILE=.Rvenv
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.0 $'
+VERSION='$Version: 2.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -237,7 +237,7 @@ while [ $# -ge 1 ]; do
 		fi
 		break
 		;;
-	-[lp]) # interpreter option in need of argument
+	-[Clp]) # interpreter option in need of argument
 		debug "arg=[$1${2:+ $2}]"
 		IARGS="$IARGS${IARGS:+ }$1"
 		shift 1 # optflag
@@ -313,6 +313,18 @@ while getopts C:DhIil:p:v flag; do
 	esac
 done
 shift $(( $OPTIND - 1 ))
+
+#
+# Extra debugging
+#
+case "$RENV_DEBUG" in
+""|*[!0-9]*) : skip ;;
+*)
+	if [ $RENV_DEBUG -ge 2 ]; then
+		debug "$msg_extra_debugging_enabled"
+		set -x
+	fi
+esac
 
 #
 # Change working directory
@@ -413,18 +425,6 @@ LIBPATHS="${LIBPATHS#, }"
 #
 eval set -- $RARGS
 debug "RARGS=[%s]" "$*"
-
-#
-# Extra debugging
-#
-case "$RENV_DEBUG" in
-""|*[!0-9]*) : skip ;;
-*)
-	if [ $RENV_DEBUG -ge 2 ]; then
-		debug "$msg_extra_debugging_enabled"
-		set -x
-	fi
-esac
 
 #
 # Generate custom R environment
