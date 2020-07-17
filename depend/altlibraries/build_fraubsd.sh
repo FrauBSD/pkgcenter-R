@@ -3,8 +3,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script to build R altlibraries inside package sandboxes $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/altlibraries/build_fraubsd.sh 2019-11-19 23:38:36 -0800 freebsdfrau $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/altlibraries/build_fraubsd.sh 2020-07-16 19:57:19 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -341,17 +341,14 @@ done
 
 # Import and tag
 if [ "$IMPORT" ]; then
-	# Package clean (else building next R version will fail)
-	step "Clean before import"
-	eval2 ./clean_fraubsd.sh
-
+	# Import changes
 	step "Importing updates"
 	eval2 git fetch && git merge --ff-only origin/master
 	eval2 git add $LOCKFILES
 
 	# Check for changes
 	step "Checking for changes to import"
-	changed=$( git status . | awk '
+	changed=$( git status $LOCKFILES | awk '
 		BEGIN { s = "[[:space:]]*" }
 		sub("^#?" s "(modified:" s ")?\\.\\./", "../")
 	' )
@@ -364,7 +361,7 @@ if [ "$IMPORT" ]; then
 			git diff "../vcran/$vcran_conf" | cat
 		fi
 
-		eval2 ../import -m "Autoimport by $ID on $HOSTNAME" .
+		eval2 ../import -m "Autoimport by $ID" $LOCKFILES
 		eval2 ../tag $( date +%Y.%m.%d-%H_%M_%S ) ||
 			echo "(errors ignored)"
 		[ "$NOPUSH" ] || eval2 git push origin master --tags
