@@ -3,7 +3,7 @@
 #
 # $Title: R interpreter capable of bootstrapping custom environments $
 # $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/Rvenv/Rvenv 2020-07-16 19:28:47 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/Rvenv/Rvenv 2020-07-16 19:40:47 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -41,7 +41,7 @@ DEFAULT_PROFILE=.Rvenv
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 1.0 $'
+VERSION='$Version: 2.0 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -80,17 +80,20 @@ TMPENV=
 
 ############################################################ I18N
 
+msg_I_cannot_be_combined_with_Rscript="-I cannot be combined with Rscript"
 msg_arg_detected="arg detected"
 msg_arg_parsed="arg parsed"
 msg_args_detected="args detected"
 msg_args_parsed="args parsed"
 msg_bad_or_missing_interpreter="Bad or missing interpreter"
+msg_change_to_directory_dir="Change to directory dir."
 msg_debug="DEBUG"
 msg_enable_debug="Enable debug. Use multiple times for extra debugging."
 msg_extra_debugging_enabled="Extra debugging enabled"
 msg_force_interactive_mode="Force interactive mode()."
 msg_force_interactive_user="Force interactive user prompt. Implies \`-i'."
 msg_found="Found"
+msg_i_cannot_be_combined_with_Rscript="-i cannot be combined with Rscript"
 msg_inherited="Inherited"
 msg_missing="Missing"
 msg_no_such_file_or_directory="No such file or directory"
@@ -102,8 +105,6 @@ msg_source_file_instead_of="Source file instead of"
 msg_usage="Usage"
 msg_use_dir_instead_of="Use dir instead of"
 msg_warning="WARNING"
-msg_i_cannot_be_combined_with_Rscript="-i cannot be combined with Rscript"
-msg_I_cannot_be_combined_with_Rscript="-I cannot be combined with Rscript"
 
 ############################################################ FUNCTIONS
 
@@ -123,13 +124,14 @@ usage()
 {
 	local optfmt="\t%-10s %s\n"
 	exec >&2
-	printf "$msg_usage: %s [-DhIiv] [-l dir] [-p file] [--] " "$pgm"
+	printf "$msg_usage: %s [OPTIONS] [--] " "$pgm"
 	if [ "$R_INHERITED" ]; then
 		printf "[file [args]]\n"
 	else
 		printf "[R | Rscript] [file [args]]\n"
 	fi
 	printf "$msg_options:\n"
+	printf "$optfmt" "-C dir" "$msg_change_to_directory_dir"
 	printf "$optfmt" "-D" "$msg_enable_debug"
 	printf "$optfmt" "-h" "$msg_print_usage_statement_to_stderr_and_exit"
 	printf "$optfmt" "-I" "$msg_force_interactive_user"
@@ -285,29 +287,47 @@ done
 #
 # Calculate RFILEDIR from RFILE
 #
-debug "RFILE=[%s]" "$RFILE"
 case "$RFILE" in
-*/*) RFILEDIR="${RFILE%/*}/" ;;
+""|/*) : leave as-is ;;
+*) RFILE="$PWD/$RFILE"
 esac
+debug "RFILE=[%s]" "$RFILE"
+[ ! "$RFILE" ] || RFILEDIR="${RFILE%/*}/"
 debug "RFILEDIR=[%s]" "$RFILEDIR"
 
 #
 # Parse interpreter options
 #
 set -- $IARGS
-while getopts DhIil:p:v flag; do
+while getopts C:DhIil:p:v flag; do
 	case "$flag" in
+	C) CHDIR="$OPTARG" ;;
 	D) RENV_DEBUG=$(( ${RENV_DEBUG:-0} + 1 )) ;;
 	I) INTERACTIVE=1 INTERACTIVE_NOEXIT=1 ;;
 	i) INTERACTIVE=1 ;;
 	l) NLIBPATHS=$(( $NLIBPATHS + 1 ))
 	   eval LIBPATH$NLIBPATHS=\"\$OPTARG\" ;;
-	p) RPROFILE=$( realpath "$RFILEDIR$OPTARG" ) ;;
+	p) RPROFILE="$OPTARG" ;;
 	v) version ;; # NOTREACHED
 	*) usage # NOTREACHED
 	esac
 done
 shift $(( $OPTIND - 1 ))
+
+#
+# Change working directory
+#
+cd "$RFILEDIR" || die
+[ ! "$CHDIR" ] || cd "$CHDIR" || die
+debug "PWD=[$PWD]"
+
+#
+# Expand RPROFILE if given
+#
+case "$RPROFILE" in
+"") : leave-empty ;;
+*) RPROFILE=$( realpath "$RPROFILE" ) || die
+esac
 
 #
 # Calculate name of chosen R interpreter (R versus Rscript)
@@ -351,13 +371,8 @@ while [ $n -le $NLIBPATHS ]; do
 	# check for path basename in RLIBRARY parent directory
 	[ "${libpath#/}" = "$libpath" -a \
 	  "${libpath##*/}" != "library" ] && lproj=1
-	# If absolute path, do not prepend file dirname
-	case "$libpath" in
-	/*) rfiledir= ;;
-	*) rfiledir="$RFILEDIR"
-	esac
 	for dir in \
-		"$rfiledir$libpath" \
+		"$libpath" \
 		${lproj:+"${RLIBRARY%/*}/${libpath##*/}"} \
 		${lproj:+"${RLIBRARY%/*}/altlibraries/${libpath##*/}"} \
 	; do
@@ -373,7 +388,7 @@ while [ $n -le $NLIBPATHS ]; do
 		LIBPATHS="$LIBPATHS, \"$dir\""
 	done
 	[ "$found" ] ||
-		die "%s: $msg_no_such_file_or_directory" "$dir"
+		die "%s: $msg_no_such_file_or_directory" "$libpath"
 	n=$(( $n + 1 ))
 done
 
@@ -381,7 +396,7 @@ done
 # Default project library when `-l dir' not given
 #
 if [ ! "$LIBPATHS" ]; then
-	dir="$RFILEDIR$DEFAULT_LIBRARY"
+	dir="$DEFAULT_LIBRARY"
 	if [ -d "$dir" ]; then
 		debug "$msg_found %s" "$dir"
 		LIBPATHS="$LIBPATHS, \"$dir\""
@@ -419,8 +434,8 @@ if [ "$RPROFILE" ]; then
 	EXPR="$EXPR; Rvenv.profile.path <- c(\"$RPROFILE\")"
 	EXPR="$EXPR; Rvenv.profile.name <- c(\"${RPROFILE##*/}\")"
 	EXPR="$EXPR; source(Rvenv.profile.path)"
-elif [ -e "$RFILEDIR$DEFAULT_PROFILE" ]; then
-	EXPR="$EXPR; Rvenv.profile.path <- c(\"$RFILEDIR$DEFAULT_PROFILE\")"
+elif [ -e "$DEFAULT_PROFILE" ]; then
+	EXPR="$EXPR; Rvenv.profile.path <- c(\"$DEFAULT_PROFILE\")"
 	EXPR="$EXPR; Rvenv.profile.name <- c(\"${DEFAULT_PROFILE##*/}\")"
 	EXPR="$EXPR; source(Rvenv.profile.path)"
 fi
