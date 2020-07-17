@@ -1,4 +1,4 @@
-cat("# Begin .Renv\n")
+cat("# Begin .Rvenv-test\n")
 cat("# Library paths are:\n")
 for(d in .libPaths()) {
 	cat(sprintf("#   %s\n", d))
@@ -11,4 +11,4 @@ if (argc > 0) {
 		cat(sprintf("#   Arg%i is %s\n", i, args[i]))
 	}
 }
-cat("# End .Renv\n")
+cat("# End .Rvenv-test\n")
