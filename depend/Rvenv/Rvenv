@@ -3,7 +3,7 @@
 #
 # $Title: R interpreter capable of bootstrapping custom environments $
 # $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/Renv/Renv 2020-05-07 09:39:58 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/Rvenv/Rvenv 2020-07-16 19:28:47 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -20,7 +20,7 @@ DEFAULT_LIBRARY=library
 #
 # Default profile to source if it exists
 #
-DEFAULT_PROFILE=.Renv
+DEFAULT_PROFILE=.Rvenv
 
 ############################################################ ENVIRONMENT
 
@@ -41,7 +41,7 @@ DEFAULT_PROFILE=.Renv
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 6.1 $'
+VERSION='$Version: 1.0 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -416,18 +416,18 @@ esac
 #
 [ ! "$LIBPATHS" ] || EXPR="$EXPR; .libPaths(c($LIBPATHS, .libPaths()))"
 if [ "$RPROFILE" ]; then
-	EXPR="$EXPR; Renv.profile.path <- c(\"$RPROFILE\")"
-	EXPR="$EXPR; Renv.profile.name <- c(\"${RPROFILE##*/}\")"
-	EXPR="$EXPR; source(Renv.profile.path)"
+	EXPR="$EXPR; Rvenv.profile.path <- c(\"$RPROFILE\")"
+	EXPR="$EXPR; Rvenv.profile.name <- c(\"${RPROFILE##*/}\")"
+	EXPR="$EXPR; source(Rvenv.profile.path)"
 elif [ -e "$RFILEDIR$DEFAULT_PROFILE" ]; then
-	EXPR="$EXPR; Renv.profile.path <- c(\"$RFILEDIR$DEFAULT_PROFILE\")"
-	EXPR="$EXPR; Renv.profile.name <- c(\"${DEFAULT_PROFILE##*/}\")"
-	EXPR="$EXPR; source(Renv.profile.path)"
+	EXPR="$EXPR; Rvenv.profile.path <- c(\"$RFILEDIR$DEFAULT_PROFILE\")"
+	EXPR="$EXPR; Rvenv.profile.name <- c(\"${DEFAULT_PROFILE##*/}\")"
+	EXPR="$EXPR; source(Rvenv.profile.path)"
 fi
-EXPR="$EXPR; Renv.file.path <- c(\"$RFILE\")"
-EXPR="$EXPR; Renv.file.name <- c(\"${RFILE##*/}\")"
-EXPR="$EXPR; Renv.dir.path <- c(\"${RFILEDIR:-./}\")"
-[ ! "$RFILE" ] || EXPR="$EXPR; source(Renv.file.path)"
+EXPR="$EXPR; Rvenv.file.path <- c(\"$RFILE\")"
+EXPR="$EXPR; Rvenv.file.name <- c(\"${RFILE##*/}\")"
+EXPR="$EXPR; Rvenv.dir.path <- c(\"${RFILEDIR:-./}\")"
+[ ! "$RFILE" ] || EXPR="$EXPR; source(Rvenv.file.path)"
 EXPR="${EXPR#; }"
 
 #
