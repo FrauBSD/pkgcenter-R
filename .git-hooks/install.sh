@@ -2,8 +2,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script to enable client side hooks $
-# $Copyright: 2017 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/.git-hooks/install.sh 2019-07-12 13:24:11 -0700 freebsdfrau $
+# $Copyright: 2017-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/.git-hooks/install.sh 2020-07-16 18:42:36 -0700 freebsdfrau $
 #
 ############################################################ GLOBALS
 

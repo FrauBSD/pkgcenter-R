@@ -4,8 +4,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script to unpack a FreeBSD package $
-# $Copyright: 1999-2017 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/freebsd/unpack.sh 2019-07-12 13:28:03 -0700 freebsdfrau $
+# $Copyright: 1999-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/freebsd/unpack.sh 2020-07-16 18:42:36 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
