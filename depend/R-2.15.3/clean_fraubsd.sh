@@ -2,8 +2,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script to clean R $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/R-2.15.3/clean_fraubsd.sh 2019-07-12 23:23:09 -0700 freebsdfrau $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/R-2.15.3/clean_fraubsd.sh 2020-07-16 17:01:28 -0700 freebsdfrau $
 #
 ############################################################ GLOBALS
 
@@ -41,12 +41,17 @@ for item in \
 	*/*/*/Makefile \
 	*/*/Makefile \
 	*/Makefile \
+	.patch_done \
 	Makeconf \
 	Makefile \
+	Makefile.in.orig \
 	Makefrag.* \
 	bin/ \
 	config.log \
+	config.site.orig \
 	config.status \
+	configure.ac.orig \
+	configure.orig \
 	doc/NEWS.rds \
 	doc/R.1 \
 	doc/html/index.html \
@@ -57,13 +62,13 @@ for item in \
 	etc/Renviron \
 	etc/ldpaths \
 	include/ \
+	install/ \
 	lib/ \
 	library/ \
 	libtool \
 	modules/ \
 	po/Makefile.in \
 	po/POTFILES \
-	sandbox/ \
 	share/locale/ \
 	src/*/*.a \
 	src/*/*.d \
