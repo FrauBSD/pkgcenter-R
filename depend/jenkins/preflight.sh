@@ -2,8 +2,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script to check machine for required software before building $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/jenkins/preflight.sh 2019-07-12 16:36:35 -0700 freebsdfrau $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/jenkins/preflight.sh 2020-07-16 20:52:14 -0700 freebsdfrau $
 #
 ############################################################ GLOBALS
 
@@ -35,13 +35,19 @@ RPMS="
 	R311-vcran
 	R331
 	R331-vcran
+	afput
+	blas-devel
 	figlet
 	gsl-devel
+	lapack-devel
+	libcurl-devel
 	libxml2-devel
 	mesa-libGL-devel
 	mesa-libGLU-devel
+	openssl-devel
 	postgresql-devel
 	vimcat
+	vcr
 " # END-QUOTE
 case "${LINUX:=$( cat /etc/redhat-release )}" in
 *" 6."*) # CentOS 6
@@ -50,7 +56,7 @@ case "${LINUX:=$( cat /etc/redhat-release )}" in
 	" ;;
 *" 7."*) # CentOS 7
 	RPMS="$RPMS
-		mysql-devel\|mariadb-devel
+		mysql-community-devel\|mysql-devel\|mariadb-devel
 	" ;;
 *)
 	echo "Unknown architecture."

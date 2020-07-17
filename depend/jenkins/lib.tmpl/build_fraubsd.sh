@@ -3,8 +3,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script to install CRAN package sources $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/jenkins/lib.tmpl/build_fraubsd.sh 2019-07-12 16:36:35 -0700 freebsdfrau $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/jenkins/lib.tmpl/build_fraubsd.sh 2020-07-16 20:52:14 -0700 freebsdfrau $
 #
 ############################################################ INCLUDES
 
@@ -75,6 +75,12 @@ step "$PACKAGEFILENAME"
 echo 'tools:::.install_packages()' | eval2 R --args $( serialize_args \
 	--no-test-load -l "$cran_destdir" "$PACKAGEFILE"
 ) || die "%s: Unable to install %s" "$PKGNAME" "$PACKAGEFILENAME"
+
+#
+# Add vcr-url.txt
+# NB: So that `vcr list' shows `-uURL' instead of `name==vers'
+#
+echo "$PACKAGE" > "$cran_destdir/$PKGNAME/vcr-url.txt"
 
 step SUCCESS
 exit $SUCCESS

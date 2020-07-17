@@ -2,16 +2,12 @@
 ############################################################ IDENT(1)
 #
 # $Title: Jenkins build script $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/jenkins/build_fraubsd.sh 2019-07-12 16:36:35 -0700 freebsdfrau $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/jenkins/build_fraubsd.sh 2020-07-16 20:52:14 -0700 freebsdfrau $
 #
 ############################################################ INCLUDES
 
 . ./build.conf || exit 1
-
-case "$( cat /etc/redhat-release )" in
-*" 6."*) . /opt/rh/devtoolset-2/enable || exit 1 ;;
-esac
 
 ############################################################ GLOBALS
 
@@ -26,9 +22,15 @@ FAILURE=1
 #
 # Command-line options
 #
+DEBUG=		# -D
+FORCE=		# -f
+FORCE_UPLOAD=	# -U
 IMPORT=		# -i|-a
-NOPUSH=		# -n
+MAKE_BIN=	# -B
 NOPULL=		# -n
+NOPUSH=		# -n
+NORPMS=		# -N
+REBUILD_BIN=	# -R
 UPLOAD=		# -u|-a
 
 #
@@ -41,12 +43,22 @@ case "$( cat /etc/redhat-release )" in
 	echo "Unknown RedHat/CentOS Linux release" >&2
 	exit $FAILURE
 esac
-case "$( uname -m )" in
-x86_64) LINUX="$LINUX-x86_64" ;;
+: "${UNAME_s:=$( uname -s )}"
+SYSTEM=$( echo "$UNAME_s" | awk '{print tolower($0)}' )
+case "${UNAME_p:=$( uname -p )}" in
+i?86)
+	LINUX="$LINUX-x86"
+	R_PLATFORM="R_x86-pc-$SYSTEM-gnu"
+	;;
+x86_64)
+	LINUX="$LINUX-x86_64"
+	R_PLATFORM="R_x86_64-pc-$SYSTEM-gnu"
+	;;
 *)
 	echo "Unknown machine architecture" >&2
 	exit $FAILURE
 esac
+PLATFORM="$LINUX"
 
 #
 # Miscellaneous
@@ -79,13 +91,20 @@ usage()
 {
 	local optfmt="\t%-5s %s\n"
 	exec >&2
-	printf "Usage: %s [-ahinu]\n" "$pgm"
+	printf "Usage: %s [-aBDFfhiNnUu] [name ...]\n" "$pgm"
 	printf "Options:\n"
 	printf "$optfmt" "-a" "Perform all actions. Same as \`-iu'."
+	printf "$optfmt" "-B" "Make binary R packages only. Implies \`-N'."
+	printf "$optfmt" "-D" "Enable debug statements from vcr."
+	printf "$optfmt" "-f" "Force. Always build even if no changes."
 	printf "$optfmt" "-h" "Print this usage statement and exit."
 	printf "$optfmt" "-i" "Import results to git."
+	printf "$optfmt" "-N" "Disable RPM creation."
 	printf "$optfmt" "-n" "Disable git pull/push actions."
-	printf "$optfmt" "-u" "Upload RPMs to artifactory."
+	printf "$optfmt" "-R" "Rebuild local binary packages."
+	printf "$optfmt" "-U" "Force Upload to Artifactory."
+	printf "$optfmt" "-u" \
+		"Upload RPMs and/or binary packages to Artifactory."
 	exit $FAILURE
 }
 
@@ -180,9 +199,9 @@ create()
 	1' SPECFILE )
 	echo "$update" > SPECFILE
 
-	# Update RPM_DEPEND in pkgcenter.conf
+	# Update SRCDIR in pkgcenter.conf
 	update=$( awk -v lib="$lib" '
-		match($0, /^RPM_DEPEND=/) {
+		match($0, /^SRCDIR=/) {
 			$0 = sprintf("%s=$PKGCENTER/depend/%s/install",
 			substr($0, 1, RSTART + RLENGTH - 2), lib)
 		}
@@ -196,7 +215,7 @@ build_rpm()
 
 	# Update SPECFILE %files
 	step "Updating %files section of SPECFILE"
-	make dependfiles
+	make srcfiles
 
 	# Update pkgcenter.conf
 	step "Updating pkgcenter.conf with %files section of SPECFILE"
@@ -205,26 +224,12 @@ build_rpm()
 	make conf
 	echo "Finish: $( date )"
 
-	# Reload src directory
-	step "Removing old package src files"
-	if [ "$IMPORT" ]; then
-		git rm -rf src || echo "(errors ignored)"
-	fi
-	[ -e src ] && rm -Rf src
-	step "Reloading package src files from install sandbox"
-	mkdir -p src
-	( set +e; make forcedepend; echo "EXIT:$?" ) | awk -v every=100 '
-		sub(/^EXIT:/, "") { status = $0; next }
-		++N == every { printf "."; fflush(); N = 0 }
-		END { printf "\n%u depend updates\n", NR; exit status }
-	' # END-QUOTE
-
 	# Build RPM and copy to local storage
 	step "Making $rpm"
 	make
 
 	# Upload it if given `-u'
-	if [ "$UPLOAD" ]; then
+	if [ "$UPLOAD$FORCE_UPLOAD" ]; then
 		step "Upload $rpm to Artifactory"
 		case "$LINUX" in
 		rhel6-x86_64) repos="
@@ -254,7 +259,10 @@ build_rpm()
 		git fetch && git merge --ff-only origin/master
 		make autoimport
 		make tag || echo "(errors ignored)"
-		[ "$NOPUSH" ] || git push origin master --tags
+		if [ ! "$NOPUSH" ]; then
+			git fetch && git merge --ff-only origin/master
+			git push origin master --tags
+		fi
 	fi
 }
 
@@ -315,6 +323,41 @@ build_lib_rpm()
 	build_rpm
 }
 
+build_lib_tar()
+{
+	local api
+	local binpkg bindir binfile
+	local patchelf=-p
+	local platform
+
+	binpkg="${lib}_${vers}_$R_PLATFORM.tar.gz"
+	bindir="../../redhat/$LINUX/$RPMGROUP/R$r_vers_short-$lib"
+	bindir="$bindir/src/opt/R/$r_vers/lib64/R/library/$lib"
+	binfile="$BIN_ROOT/$PLATFORM/$r_vers/${lib}_${vers}.tgz"
+
+	[ -e "$binfile" ] && return $FAILURE
+
+	case "$LINUX" in
+	rhel6*) patchelf= ;;
+	esac
+
+	step "Create R binary package"
+	( set +e
+		vcr-$r_vers ${DEBUG:+-D} pack $pathcelf "$bindir"
+		echo "EXIT:$?"
+	) | awk '
+		!/==>/ && !/^EXIT:/
+		sub(/^EXIT:/, "") { status = $0 }
+		END { exit status }
+	' # END-QUOTE
+	[ -e "${binfile%/*}" ] || mkdir -p "${binfile%/*}"
+	mv "$binpkg" "$binfile" || die "Unable to archive binary R package"
+
+	[ "$UPLOAD$FORCE_UPLOAD" ] && afput -r "$bin_repo" "$binfile"
+
+	return $SUCCESS
+}
+
 build_stats()
 {
 	echo
@@ -347,15 +390,22 @@ set -e # errexit
 #
 # Process command-line options
 #
-while getopts ahinu flag; do
+while getopts aBDfhiNnRUu flag; do
 	case "$flag" in
 	a) IMPORT=1 UPLOAD=1 ;;
+	B) MAKE_BIN=1 ;;
+	D) DEBUG=1 ;;
+	f) FORCE=1 ;;
 	i) IMPORT=1 ;;
+	N) NORPMS=1 ;;
 	n) NOPUSH=1 NOPULL=1 ;;
+	R) REBUILD_BIN=1 ;;
+	U) FORCE_UPLOAD=1 ;;
 	u) UPLOAD=1 ;;
 	*) usage # NOTREACHED
 	esac
 done
+shift $(( $OPTIND - 1 ))
 
 START=$( date )
 hdr1 "Build started on $START"
@@ -365,12 +415,13 @@ trap build_stats EXIT
 # Dependency checks
 #
 have awk || die "awk not installed [yum install gawk]"
-if [ "$UPLOAD" ]; then
+if [ "$UPLOAD$FORCE_UPLOAD" ]; then
 	have afput || die "afput not installed [yum install afput]"
 fi
 have make || die "make not installed [yum install make]"
 have curl || die "curl not installed [yum install curl]"
 have rpmbuild || die "rpmbuild not installed [yum install rpm-build]"
+have vcr || die "vcr not installed [yum install vcr]"
 
 #
 # Fixup paths
@@ -379,12 +430,16 @@ case "$RPM_ROOT" in
 /) : ok ;;
 *) RPM_ROOT="${RPM_ROOT%/}"
 esac
+case "$BIN_ROOT" in
+/) : ok ;;
+*) BIN_ROOT="${BIN_ROOT%/}"
+esac
 
 #
 # Download
 #
 step "Download lock files"
-( set +e; ./download.sh ${NOPULL:+-n}; echo "EXIT:$?" ) | awk '
+( set +e; ./download.sh ${NOPULL:+-n} "$@"; echo "EXIT:$?" ) | awk '
 	!/==>/ && !/^EXIT:/
 	sub(/^EXIT:/, "") { status = $0 }
 	END { exit status }
@@ -406,26 +461,32 @@ fi
 # Build
 #
 thisdir=$( pwd )
-n=1
+n=0
 while : fund build lock files ; do
+	n=$(( $n + 1 ))
+
 	#
 	# Lock file
 	#
 	getvar BUILD${n}_NAME name || break
 	[ "$name" ] || break
-	ban1 "${name%.lock}"
-	hdr1 "Build $name"
-
-	#
-	# R version
-	#
-	r_vers="${name##*_}"
-	r_vers="${r_vers%.lock}"
-	r_vers_short=$( echo "$r_vers" | sed -e 's/[^0-9]//g' )
+	if [ $# -eq 0 ]; then
+		skip=
+	else
+		skip=1
+		for arg in "$@"; do
+			[ "$name" = "$arg" ] || continue
+			skip=
+			break
+		done
+	fi
+	[ ! "$skip" ] || continue
 
 	#
 	# vcran config
 	#
+	vcran=
+	xform=
 	case "$LINUX" in
 	rhel6*)
 		getvar BUILD${n}_RHEL6_VCRAN vcran
@@ -435,10 +496,22 @@ while : fund build lock files ; do
 		getvar BUILD${n}_RHEL7_VCRAN vcran
 		getvar BUILD${n}_RHEL7_VCRAN_XFORM xform
 		;;
-	*)
-		vcran=
-		xform=
-	esac
+	esac || : error check below
+	[ "$vcran" ] || continue
+
+	#
+	# Banner
+	#
+	ban1 "${name%.lock}"
+	hdr1 "Build $name"
+
+	#
+	# R version
+	#
+	r_vers="${name##*_}"
+	r_vers="${r_vers%.lock}"
+	bin_repo="$BIN_REPO/bin/$PLATFORM/contrib/$r_vers"
+	r_vers_short=$( echo "$r_vers" | sed -e 's/[^0-9]//g' )
 
 	#
 	# Build libraries
@@ -447,7 +520,7 @@ while : fund build lock files ; do
 	for vcran in $vcran; do
 		vcran_conf="etc/$vcran"
 
-		# Convert 
+		# Convert
 		step "Create ../vcran/$vcran_conf"
 		( cd ../vcran &&
 			./lock2conf.sh -o "$vcran_conf" "$thisdir/$name" )
@@ -473,13 +546,24 @@ while : fund build lock files ; do
 			else
 				git diff "../vcran/$vcran_conf" | cat
 			fi
+		elif [ "$FORCE" ]; then
+			warn "NO change detected (building anyways; \`-f')"
 		else
 			warn "NO change detected (skipping)"
 			break
 		fi
 
 		# Build
-		( cd ../vcran && ./build_fraubsd.sh "$vcran_conf" )
+		( cd ../vcran && ./build_fraubsd.sh \
+			${DEBUG:+-D} \
+			${FORCE_UPLOAD:+-I} \
+			${IMPORT:+-i} \
+			${MAKE_BIN:+-B} \
+			${REBUILD_BIN:+-R} \
+			${UPLOAD:+-i} \
+			"$vcran_conf"
+		)
+		[ ! "$MAKE_BIN$NORPMS" ] || continue
 
 		# Package build
 		rpm="$RPMPREFIX$r_vers_short-vcran"
@@ -487,23 +571,25 @@ while : fund build lock files ; do
 		[ -e "$rpmdir" ] || ( lib=vcran create "$rpm" )
 		( cd "$rpmdir" && build_vcran_rpm )
 
-		# Package clean (else building next R version will fail)
-		step "Clean ../vcran"
-		( cd ../vcran && ./clean_fraubsd.sh )
-
 		# Import and tag
 		if [ "$IMPORT" ]; then
 			step "Importing ../vcran updates"
 			(
 				cd ../vcran
 				git fetch && git merge --ff-only origin/master
-				../import -m "Autoimport by $ID on $HOSTNAME" .
+				../import -m "Autoimport by $ID" \
+					"$vcran_conf"
 				../tag $( date +%Y.%m.%d-%H_%M_%S ) ||
 					echo "(errors ignored)"
-				[ "$NOPUSH" ] || git push origin master --tags
+				if [ ! "$NOPUSH" ]; then
+					git fetch && git merge \
+						--ff-only origin/master
+					git push origin master --tags
+				fi
 			)
 		fi
 	done
+	[ ! "$MAKE_BIN$NORPMS" ] || continue
 
 	#
 	# External libraries
@@ -530,7 +616,8 @@ while : fund build lock files ; do
 				git diff "../$lib/$r_conf" | cat
 			fi
 		else
-			warn "NO changes detected (skipping)"
+			build_lib_tar $lib ||
+				warn "NO changes detected (skipping)"
 			continue
 		fi
 
@@ -544,6 +631,9 @@ while : fund build lock files ; do
 		[ -e "$rpmdir" ] || ( create "$rpm" )
 		( cd "$rpmdir" && build_lib_rpm )
 
+		# R binary package build
+		build_lib_tar $lib
+
 		# Package clean (else building next R version will fail)
 		step "Clean ../$lib"
 		( cd "../$lib" && ./clean_fraubsd.sh )
@@ -554,14 +644,17 @@ while : fund build lock files ; do
 			(
 				cd "../$lib"
 				git fetch && git merge --ff-only origin/master
-				../import -m "Autoimport by $ID on $HOSTNAME" .
+				../import -m "Autoimport by $ID" \
+					*.sh etc
 				../tag $vers || echo "(errors ignored)"
-				[ "$NOPUSH" ] || git push origin master --tags
+				if [ ! "$NOPUSH" ]; then
+					git fetch && git merge \
+						--ff-only origin/master
+					git push origin master --tags
+				fi
 			)
 		fi
 	done
-
-	n=$(( $n + 1 ))
 done
 
 BUILD_SUCCESS=1

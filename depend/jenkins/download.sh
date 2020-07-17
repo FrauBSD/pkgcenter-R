@@ -2,8 +2,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Jenkins build script $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/jenkins/download.sh 2019-07-12 16:36:35 -0700 freebsdfrau $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/jenkins/download.sh 2020-07-16 20:52:14 -0700 freebsdfrau $
 #
 ############################################################ INCLUDES
 
@@ -38,7 +38,7 @@ usage()
 {
 	local optfmt="\t%-5s %s\n"
 	exec >&2
-	printf "Usage: %s [-hn]\n" "$pgm"
+	printf "Usage: %s [-hn] [name ...]\n" "$pgm"
 	printf "Options:\n"
 	printf "$optfmt" "-h" "Print this usage statement and exit."
 	printf "$optfmt" "-n" "Do not pull sweng repo updates."
@@ -74,18 +74,30 @@ shift $(( $OPTIND - 1 ))
 #
 # Determine if a pull is required
 #
-n=1
+n=0
 all_exist=1
 while : fund build lock files; do
+	n=$(( $n + 1 ))
+
 	# Lock file
 	getvar BUILD${n}_NAME name || break
+
+	if [ $# -eq 0 ]; then
+		skip=
+	else
+		skip=1
+		for arg in "$@"; do
+			[ "$name" = "$arg" ] || continue
+			skip=
+			break
+		done
+	fi
+	[ "$skip" ] && continue
 
 	if [ ! -e "$name" ]; then
 		all_exist=
 		break
 	fi
-
-	n=$(( $n + 1 ))
 done
 if [ "$all_exist" ]; then
 	PULL=
@@ -118,11 +130,26 @@ fi
 #
 # Download lock files
 #
-n=1
+n=0
 while : fund build lock files ; do
+	n=$(( $n + 1 ))
+
 	# Lock file
 	getvar BUILD${n}_NAME name || break
 	[ "$name" ] || break
+
+	# Skip?
+	if [ $# -eq 0 ]; then
+		skip=
+	else
+		skip=1
+		for arg in "$@"; do
+			[ "$name" = "$arg" ] || continue
+			skip=
+			break
+		done
+	fi
+	[ ! "$skip" ] || continue
 
 	# Download
 	if [ -e "$name" ]; then
@@ -132,8 +159,6 @@ while : fund build lock files ; do
 		getvar BUILD${n}_PATH path
 		cp -fv "$path" "$name"
 	fi
-
-	n=$(( $n + 1 ))
 done
 
 exit $SUCCESS

@@ -2,8 +2,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script to convert .lock file into library .conf file $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/jenkins/lock2conf.sh 2019-07-12 16:36:35 -0700 freebsdfrau $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/jenkins/lock2conf.sh 2020-07-16 20:52:14 -0700 freebsdfrau $
 #
 ############################################################ INCLUDES
 
@@ -66,7 +66,7 @@ fi
 
 usage()
 {
-	local optfmt="\t%10s %s\n"
+	local optfmt="\t%-5s %s\n"
 	exec >&2
 	printf "Usage: %s [-hl] blah.lock\n" "$pgm"
 	printf "Options:\n"

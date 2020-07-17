@@ -2,8 +2,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script to clean jenkins files $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/jenkins/clean_fraubsd.sh 2019-07-12 16:36:35 -0700 freebsdfrau $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/jenkins/clean_fraubsd.sh 2020-07-16 20:52:14 -0700 freebsdfrau $
 #
 ############################################################ INCLUDES
 
