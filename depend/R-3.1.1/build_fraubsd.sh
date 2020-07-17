@@ -3,8 +3,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script to build R and install it to package sandbox $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/R-3.1.1/build_fraubsd.sh 2019-11-19 23:13:01 -0800 freebsdfrau $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/R-3.1.1/build_fraubsd.sh 2020-07-16 17:08:32 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -115,14 +115,14 @@ eval2 make
 #
 # Install software to package sandbox
 #
-[ -e sandbox ] || eval2 mkdir -p sandbox
-eval2 make DESTDIR=$PWD/sandbox install
+[ -e install ] || eval2 mkdir -p install
+eval2 make DESTDIR=$PWD/install install
 eval2 : SUCCESS
 
 #
 # Remove a library that we want versioned by vcran
 #
-eval2 rm -Rf sandbox/opt/R/3.1.1/lib64/R/library/foreign
+eval2 rm -Rf install/opt/R/3.1.1/lib64/R/library/foreign
 
 ################################################################################
 # END
