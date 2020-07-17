@@ -2,8 +2,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script to update R $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/R-2.15.3/update_fraubsd.sh 2019-07-12 23:04:45 -0700 freebsdfrau $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/R-2.15.3/update_fraubsd.sh 2020-07-16 17:02:48 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -99,6 +99,7 @@ eval2 rsync -crlDvH --delete  \
 	--exclude=\"\*/.gitignore\"		\
 	--exclude=\"\*/.gitmodules\"		\
 	--exclude=\"\*fraubsd.sh\"		\
+	--exclude=\"patch/\*\"			\
 	"R-tmp.$$/R-$RELEASE/" "$thisdir/"
 eval2 rm -Rf R-tmp.$$ "$download"
 
