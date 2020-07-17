@@ -1,8 +1,8 @@
-#!/usr/bin/Renv-3.1.1 -p .Renv-test -l library.test
+#!/usr/bin/Rvenv-3.1.1 -p .Rvenv-test -l library.test
 #!/usr/bin/env Rscript-3.1.1
 cat("---------------------\n")
-scriptName <- if (exists("Renv.file.path")) Renv.file.path else ""
-scriptDir <- if (exists("Renv.dir.path")) Renv.dir.path else ""
+scriptName <- if (exists("Rvenv.file.path")) Rvenv.file.path else ""
+scriptDir <- if (exists("Rvenv.dir.path")) Rvenv.dir.path else ""
 cat(sprintf("Begin %s\n", scriptName))
 cat(sprintf("+ Dir %s\n", scriptDir))
 cat(sprintf("+ Running: %sinteractive\n", if (interactive()) "" else "non-"))
