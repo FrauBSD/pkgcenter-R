@@ -3,7 +3,7 @@
 #
 # $Title: R interpreter capable of bootstrapping custom environments $
 # $Copyright: 2019-2020 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/Rvenv/Rvenv 2020-07-16 19:50:15 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/Rvenv/Rvenv 2020-07-16 19:52:42 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -41,7 +41,7 @@ DEFAULT_PROFILE=.Rvenv
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.3 $'
+VERSION='$Version: 2.4 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -66,6 +66,7 @@ RLIBRARY=
 INTERACTIVE=		# -i
 INTERACTIVE_NOEXIT=	# -I
 NLIBPATHS=0		# -l dir
+NO_ENV=			# -n
 RPROFILE=		# -p file
 
 #
@@ -88,6 +89,7 @@ msg_args_parsed="args parsed"
 msg_bad_or_missing_interpreter="Bad or missing interpreter"
 msg_change_to_directory_dir="Change to directory dir."
 msg_debug="DEBUG"
+msg_disable_environment_features="Disable environment features."
 msg_enable_debug="Enable debug. Use multiple times for extra debugging."
 msg_extra_debugging_enabled="Extra debugging enabled"
 msg_force_interactive_mode="Force interactive mode()."
@@ -138,6 +140,7 @@ usage()
 	printf "$optfmt" "-i" "$msg_force_interactive_mode"
 	printf "$optfmt" "-l dir" \
 	    "$msg_use_dir_instead_of \`$DEFAULT_LIBRARY'."
+	printf "$optfmt" "-n" "$msg_disable_environment_features"
 	printf "$optfmt" "-p file" \
 	    "$msg_source_file_instead_of \`$DEFAULT_PROFILE'."
 	printf "$optfmt" "-v" "$msg_print_version_to_stderr_and_exit"
@@ -299,7 +302,7 @@ debug "RFILEDIR=[%s]" "$RFILEDIR"
 # Parse interpreter options
 #
 set -- $IARGS
-while getopts C:DhIil:p:v flag; do
+while getopts C:DhIil:np:v flag; do
 	case "$flag" in
 	C) CHDIR="$OPTARG" ;;
 	D) RENV_DEBUG=$(( ${RENV_DEBUG:-0} + 1 )) ;;
@@ -307,6 +310,7 @@ while getopts C:DhIil:p:v flag; do
 	i) INTERACTIVE=1 ;;
 	l) NLIBPATHS=$(( $NLIBPATHS + 1 ))
 	   eval LIBPATH$NLIBPATHS=\"\$OPTARG\" ;;
+	n) NO_ENV=1 ;;
 	p) RPROFILE="$OPTARG" ;;
 	v) version ;; # NOTREACHED
 	*) usage # NOTREACHED
@@ -329,17 +333,24 @@ esac
 #
 # Change working directory
 #
-[ ! "$RFILEDIR" ] || cd "$RFILEDIR" || die
-[ ! "$CHDIR" ] || cd "$CHDIR" || die
+if [ ! "$NO_ENV" ]; then
+	if [ "$CHDIR" ]; then
+		cd "$CHDIR" || die
+	elif [ "$RFILEDIR" ]; then
+		cd "$RFILEDIR" || die
+	fi
+fi
 debug "PWD=[$PWD]"
 
 #
 # Expand RPROFILE if given
 #
-case "$RPROFILE" in
-"") : leave-empty ;;
-*) RPROFILE=$( realpath "$RPROFILE" ) || die
-esac
+if [ ! "$NO_ENV" ]; then
+	case "$RPROFILE" in
+	"") : leave-empty ;;
+	*) RPROFILE=$( realpath "$RPROFILE" ) || die
+	esac
+fi
 
 #
 # Calculate name of chosen R interpreter (R versus Rscript)
@@ -371,6 +382,10 @@ debug "RLIBRARY=[%s]" "$RLIBRARY"
 # Find virtual environment libraries
 #
 n=1
+if [ "$NO_ENV" ]; then
+	# Prevent below loop
+	n=$(( $NLIBPATHS + 1 ))
+fi
 while [ $n -le $NLIBPATHS ]; do
 	found=
 	lproj=
@@ -406,8 +421,9 @@ done
 
 #
 # Default project library when `-l dir' not given
+# NB: Skipped if `-n' given
 #
-if [ ! "$LIBPATHS" ]; then
+if [ ! "$NO_ENV$LIBPATHS" ]; then
 	dir="$DEFAULT_LIBRARY"
 	if [ -d "$dir" ]; then
 		debug "$msg_found %s" "$dir"
@@ -430,6 +446,11 @@ debug "RARGS=[%s]" "$*"
 # Generate custom R environment
 #
 [ ! "$LIBPATHS" ] || EXPR="$EXPR; .libPaths(c($LIBPATHS, .libPaths()))"
+if [ "$NO_ENV" ]; then
+	# Prevent below conditionals
+	RPROFILE=
+	DEFAULT_PROFILE=
+fi
 if [ "$RPROFILE" ]; then
 	EXPR="$EXPR; Rvenv.profile.path <- c(\"$RPROFILE\")"
 	EXPR="$EXPR; Rvenv.profile.name <- c(\"${RPROFILE##*/}\")"
