@@ -8,8 +8,8 @@ SH = sh
 all:
 
 install:
-	$(SH) -n Renv
-	$(INSTALL) Renv $(DESTDIR)/bin/Renv
+	$(SH) -n Rvenv
+	$(INSTALL) Rvenv $(DESTDIR)/bin/Rvenv
 
 uninstall:
-	$(RM) -f $(DESTDIR)/bin/Renv
+	$(RM) -f $(DESTDIR)/bin/Rvenv
