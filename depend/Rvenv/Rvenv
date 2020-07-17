@@ -3,7 +3,7 @@
 #
 # $Title: R interpreter capable of bootstrapping custom environments $
 # $Copyright: 2019-2020 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/Rvenv/Rvenv 2020-07-16 19:47:12 -0700 freebsdfrau $
+# $FrauBSD: pkgcenter-R/depend/Rvenv/Rvenv 2020-07-16 19:50:15 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -41,7 +41,7 @@ DEFAULT_PROFILE=.Rvenv
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.2 $'
+VERSION='$Version: 2.3 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -457,6 +457,7 @@ else
 	TMPENV=$( mktemp "$RENV_TMPDIR/$pgm.XXXXXXXX" ) || die
 	[ "$INTERACTIVE_NOEXIT" ] || [ ! "$INTERACTIVE" ] || [ ! "$RFILE" ] ||
 		EXPR="$EXPR; quit()"
+	[ ! "$R_PROFILE_USER" ] || EXPR="$R_PROFILE_USER; $EXPR"
 	echo "$EXPR" > "$TMPENV" || die
 	trap 'rm -f "$TMPENV"' EXIT
 	case "$RBIN" in
