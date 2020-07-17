@@ -2,8 +2,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: R interpreter capable of bootstrapping custom environments $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/Rvenv/Rvenv 2020-07-16 19:43:25 -0700 freebsdfrau $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/Rvenv/Rvenv 2020-07-16 19:47:12 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -41,7 +41,7 @@ DEFAULT_PROFILE=.Rvenv
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.1 $'
+VERSION='$Version: 2.2 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -329,7 +329,7 @@ esac
 #
 # Change working directory
 #
-cd "$RFILEDIR" || die
+[ ! "$RFILEDIR" ] || cd "$RFILEDIR" || die
 [ ! "$CHDIR" ] || cd "$CHDIR" || die
 debug "PWD=[$PWD]"
 
