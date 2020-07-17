@@ -4,8 +4,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script for managing staging dependencies from Makefiles $
-# $Copyright: 1999-2017 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/Mk/make_stage 2019-07-12 13:28:03 -0700 freebsdfrau $
+# $Copyright: 1999-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/Mk/make_stage 2020-07-16 18:21:22 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -76,10 +76,10 @@ while [ $# -ge 2 ]; do
 	FROM="$1" TO="$2"
 	shift 2
 	case "$TO" in */*) DESTDIR="${TO%/*}"
-		[ -d "$DESTDIR" ] || eval2 $MKDIR -p "$DESTDIR" ;;
+		[ -d "$DESTDIR" ] || eval2 $MKDIR -p \"$DESTDIR\" ;;
 	esac
 	[ "$FORCE" ] || [ "$FROM" -nt "$TO" -o ! -e "$TO" ] || continue
-	eval2 $CP -f "$FROM" "$TO"
+	eval2 $CP -f \"$FROM\" \"$TO\"
 done
 
 ################################################################################

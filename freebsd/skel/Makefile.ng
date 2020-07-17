@@ -33,8 +33,8 @@ SOURCE_CONF = $(ENVIRON) $(PKGCENTER)/Mk/pkgcenter_readconf $(PKGCENTER_CONF)
 # Pulled from pkgcenter.conf -- configured above.
 #
 DIRS     = $(SOURCE_CONF) DIRS     | $(PKGCENTER)/Mk/xargs
-SYMLINKS = $(SOURCE_CONF) SYMLINKS | $(PKGCENTER)/Mk/xargs -n 1024
-STAGE    = $(SOURCE_CONF) STAGE    | $(PKGCENTER)/Mk/xargs -n 1024
+SYMLINKS = $(SOURCE_CONF) SYMLINKS | $(PKGCENTER)/Mk/xargs -n 512
+STAGE    = $(SOURCE_CONF) STAGE    | $(PKGCENTER)/Mk/xargs -n 512
 
 ################################################################################
 ############################### GLOBAL VARIABLES ###############################
@@ -197,6 +197,9 @@ autoimport:
 
 commit:
 	@$(GIT) commit
+
+push:
+	@$(GIT) push origin $$( git branch | awk '$$1=="*"{print $$2}' ) --tags
 
 pull:
 	@$(GIT) pull

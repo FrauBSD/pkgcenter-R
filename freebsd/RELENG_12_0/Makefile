@@ -74,6 +74,9 @@ import:
 commit:
 	@$(GIT) commit
 
+push:
+	@$(GIT) push origin $$( git branch | awk '$$1=="*"{print $$2}' ) --tags
+
 pull:
 	@$(GIT) pull
 
@@ -81,7 +84,7 @@ pull:
 # END
 ################################################################################
 #
-# $Copyright: 1999-2017 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/freebsd/RELENG_12_0/Makefile 2019-11-20 00:09:30 -0800 freebsdfrau $
+# $Copyright: 1999-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/freebsd/RELENG_12_0/Makefile 2020-07-16 18:21:22 -0700 freebsdfrau $
 #
 ################################################################################

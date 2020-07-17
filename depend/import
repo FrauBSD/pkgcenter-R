@@ -4,8 +4,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script for importing a directory to git $
-# $Copyright: 1999-2017 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/import 2019-07-12 13:28:03 -0700 freebsdfrau $
+# $Copyright: 1999-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/import 2020-07-16 18:21:22 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -28,6 +28,7 @@ MESSAGE=	# -m msg
 # Utility pathnames
 #
 : ${GIT:=git}
+: ${TEE:=tee}
 
 ############################################################ MAIN
 
@@ -44,8 +45,10 @@ done
 shift $(( $OPTIND - 1 ))
 
 set -e
-$GIT add "$@"
-$GIT commit ${MESSAGE:+-m "$MESSAGE"}
+added=$( $GIT add -v "$@" | $TEE /dev/stderr ) 2>&1
+if [ "$added" ]; then
+	$GIT commit ${MESSAGE:+-m "$MESSAGE"}
+fi
 
 exit $SUCCESS
 

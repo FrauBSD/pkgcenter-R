@@ -54,6 +54,9 @@ Git Maintenance Targets:
 	pull
 	    An alias for `git pull'.
 
+	push
+	    An alias for `git push origin --tags'.
+
 	tag_all
 	    Performs `make tag' in all package directories, tagging files for a
 	    given package to the current package version.

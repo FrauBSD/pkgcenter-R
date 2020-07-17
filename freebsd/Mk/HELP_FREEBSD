@@ -10,6 +10,7 @@ Global Maintenance Targets:
    distclean_freebsd       Perform `make distclean' for all packages
    pull_freebsd            Perform `make pull' for all packages
    commit_freebsd          Perform `make commit' for all packages
+   update                  Update package Makefiles from skel
 Git Maintenance Targets:
    pull                    An alias to `git pull'
    tag_freebsd             Perform `make tag' for all packages

@@ -4,8 +4,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: sh(1) subroutines for parsing pkg(1) MANIFEST files $
-# $Copyright: 2014-2017 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/freebsd/Mk/manifest.subr 2019-07-12 13:28:03 -0700 freebsdfrau $
+# $Copyright: 2014-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/freebsd/Mk/manifest.subr 2020-07-16 18:21:22 -0700 freebsdfrau $
 #
 ############################################################ CONFIGURATION
 
@@ -44,7 +44,7 @@ exec 9<<EOF
 //
 // \$FrauBSD\$
 //
-// \$Copyright: 2017 The FrauBSD Project. All rights reserved. $
+// \$Copyright: 2017-2020 The FrauBSD Project. All rights reserved. $
 //
 ////////////////////////////////////////////////////////////////////////////////
 EOF

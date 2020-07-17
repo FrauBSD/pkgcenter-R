@@ -13,6 +13,7 @@ Global Maintenance Targets:
    update_all              Update package Makefiles from skel
 Git Maintenance Targets:
    pull                    An alias to `git pull'
+   push                    An alias to `git push origin --tags'
    tag_all                 Perform `make tag' for all packages
    forcetag_all            Perform `make forcetag' for all packages
 Git Addition Targets:

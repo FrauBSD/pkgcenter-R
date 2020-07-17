@@ -4,8 +4,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script for creating a list of symbolic links from Makefiles $
-# $Copyright: 1999-2017 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/Mk/make_symlinks 2019-07-12 13:28:03 -0700 freebsdfrau $
+# $Copyright: 1999-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/Mk/make_symlinks 2020-07-16 18:21:22 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -53,7 +53,7 @@ fi
 #
 set -e
 while [ $# -ge 2 ]; do
-	eval2 $LN -sf "$2" "$1"
+	eval2 $LN -nsf "$2" "$1"
 	shift 2
 done
 

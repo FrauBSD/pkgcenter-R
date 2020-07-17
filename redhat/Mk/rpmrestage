@@ -4,8 +4,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script for re-populating the package staging files from RPM $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/redhat/Mk/rpmrestage 2019-11-20 00:10:45 -0800 freebsdfrau $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/redhat/Mk/rpmrestage 2020-07-16 18:21:22 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -23,6 +23,7 @@ FAILURE=1
 # OS Glue
 #
 : ${UNAME_s:=$( uname -s )}
+: ${UNAME_p:=$( uname -p )}
 
 #
 # Utility pathnames
@@ -42,6 +43,7 @@ FAILURE=1
 FILE=
 NAME=
 RPMNAME=
+_RPMNAME=
 
 ############################################################ MAIN
 
@@ -51,16 +53,26 @@ set -e # errexit
 # Download the RPM using yumdownloader (from yum-utils)
 #
 RPMNAME=$( $PKGCENTER/redhat/Mk/rpmname "$SPECFILE" )
-if ! $ENV -i $YUMDOWNLOADER -q -C -y "$RPMNAME"; then
+if ! [ -e "$RPMNAME.$UNAME_p.rpm" ]; then
+if ! $ENV -i $YUMDOWNLOADER -y "$RPMNAME"; then
 	NAME=$( $AWK 'sub(/^[Nn][Aa][Mm][Ee]:[[:space:]]*/, "")' "$SPECFILE" )
-	RPMNAME=$( $ENV -i $YUM info -q -C "$NAME" | $AWK '
+	_RPMNAME=$( $ENV -i $YUM info -q -C "$NAME" | $AWK '
 		$1 == "Name" { name = $NF }
 		$1 == "Version" { vers = $NF }
 		$1 == "Release" { rel = $NF }
-		END { printf "%s-%s-%s\n", name, vers, rel }
+		END { if (name != "") printf "%s-%s-%s\n", name, vers, rel }
 	' )
-	$ENV -i $YUMDOWNLOADER -q -C -y "$RPMNAME"
+	if [ ! "$_RPMNAME" ]; then
+		echo "$NAME unknown"
+		echo "#"
+		echo "# Please find $RPMNAME.$UNAME_p.rpm"
+		echo "#"
+		exit $FAILURE
+	fi
+	RPMNAME="$_RPMNAME"
+	$ENV -i $YUMDOWNLOADER -y "$RPMNAME"
 fi
+fi # -e $RPMNAME.$UNAME_p.rpm
 for FILE in $( $LS -tr $RPMNAME*.rpm ); do
 	break
 done
@@ -68,9 +80,10 @@ done
 #
 # Unpack the RPM
 #
-$MKDIR -p stage
 no_absolute_filenames=
 [ "$UNAME_s" = Linux ] && no_absolute_filenames=--no-absolute-filenames
+set -x
+$MKDIR -p stage
 $RPM2CPIO "$FILE" | ( cd stage &&
 	$CPIO -idmu $no_absolute_filenames --no-preserve-owner )
 

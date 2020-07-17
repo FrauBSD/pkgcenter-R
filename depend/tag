@@ -4,8 +4,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script for tagging pkgcenter depend files in git $
-# $Copyright: 1999-2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/tag 2019-07-12 13:28:03 -0700 freebsdfrau $
+# $Copyright: 1999-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/tag 2020-07-16 18:21:22 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -105,9 +105,10 @@ usage()
 	die
 }
 
+exec 3<&1
 eval2()
 {
-	echo "$*"
+	echo "$*" >&3
 	eval "$@"
 }
 
@@ -219,7 +220,7 @@ replaceall "$TAGPREFIX" "[ $TAB$NL]" _ TAGPREFIX
 # Process `-l' flag
 #
 if [ "$LIST" ]; then
-	eval2 $GIT tag -l "$TAGPREFIX-*"
+	eval2 $GIT tag -l "$TAGPREFIX-*" | cat
 	exit
 fi
 

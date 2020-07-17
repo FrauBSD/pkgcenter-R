@@ -4,8 +4,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script for getting the package name from an RPM SPEC-file $
-# $Copyright: 1999-2017 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/redhat/Mk/rpmname 2020-05-17 16:42:34 -0700 freebsdfrau $
+# $Copyright: 1999-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/redhat/Mk/rpmname 2020-07-16 18:21:22 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #

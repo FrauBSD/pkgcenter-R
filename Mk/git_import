@@ -4,8 +4,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script for importing current working directory to git $
-# $Copyright: 1999-2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/Mk/git_import 2019-07-12 13:28:03 -0700 freebsdfrau $
+# $Copyright: 1999-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/Mk/git_import 2020-07-16 18:21:22 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -76,7 +76,8 @@ if [ -d "$SRCDIR" ]; then
 	added=$( $GIT add -v "$SRCDIR" )
 	if [ "$added" ]; then
 		[ ! "$MESSAGE" ] || printf "Commit message:\n%s\n\n" "$MESSAGE"
-		eval2 $GIT commit --no-verify ${MESSAGE:+-m \"\$MESSAGE\"}
+		eval2 $GIT commit --no-verify ${MESSAGE:+-m \"\$MESSAGE\"} ||
+			echo "(errors ignored)"
 	fi
 fi
 

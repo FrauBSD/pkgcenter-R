@@ -41,6 +41,10 @@ Global Maintenance Targets:
 	commit_freebsd
 	    Performs `make commit' in all package directories.
 
+	update
+	    Updates the Makefile in each package direcotry with the Makefile
+	    in the skel directory.
+
 Git Maintenance Targets:
 
 	pull
