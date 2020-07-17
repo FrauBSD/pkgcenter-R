@@ -2,8 +2,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script to clean R $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: pkgcenter-R/depend/R-3.3.1/clean_fraubsd.sh 2019-07-12 23:23:09 -0700 freebsdfrau $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: pkgcenter-R/depend/R-3.3.1/clean_fraubsd.sh 2020-07-16 17:04:50 -0700 freebsdfrau $
 #
 ############################################################ GLOBALS
 
@@ -59,11 +59,11 @@ for item in \
 	etc/javaconf \
 	etc/ldpaths \
 	include/ \
+	install/ \
 	lib/ \
 	library/ \
 	libtool \
 	modules/ \
-	sandbox/ \
 	src/*/*.a \
 	src/*/*.d \
 	src/*/*.o \

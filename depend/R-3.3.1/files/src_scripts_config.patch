@@ -1,0 +1,24 @@
+--- src/scripts/config.orig	2019-12-27 13:30:19.851208837 -0800
++++ src/scripts/config	2019-12-27 13:31:25.779174531 -0800
+@@ -58,6 +58,12 @@ Variables:
+   CXXFLAGS      compiler flags for CXX
+   CXXPICFLAGS   special flags for compiling C++98 code to be included in a
+ 		shared library
++  CXX11         compiler command for C++11 code
++  CXX11STD      flag used with CXX11 to enable C++11 support
++  CXX11FLAGS    further compiler flags for CXX11
++  CXX11PICFLAGS
++                special flags for compiling C++11 code to be included in
++                a shared library
+   CXX1X         compiler command for C++11 code
+   CXX1XSTD      flag used with CXX1X to enable C++11 support
+   CXX1XFLAGS    further compiler flags for CXX1X
+@@ -251,7 +257,7 @@ fi
+ query="${MAKE} -s ${makefiles} print R_HOME=${R_HOME}"
+ 
+ ok_c_vars="CC CFLAGS CPICFLAGS CPP CPPFLAGS"
+-ok_cxx_vars="CXX CXXCPP CXXFLAGS CXXPICFLAGS CXX1X CXX1XSTD CXX1XFLAGS CXX1XPICFLAGS"
++ok_cxx_vars="CXX CXXCPP CXXFLAGS CXXPICFLAGS CXX11 CXX11STD CXX11FLAGS CXX11PICFLAGS CXX1X CXX1XSTD CXX1XFLAGS CXX1XPICFLAGS"
+ ok_dylib_vars="DYLIB_EXT DYLIB_LD DYLIB_LDFLAGS"
+ ok_objc_vars="OBJC OBJCFLAGS"
+ ok_java_vars="JAVA JAVAC JAVAH JAR JAVA_HOME JAVA_LIBS JAVA_CPPFLAGS"
